@@ -1,12 +1,14 @@
 const express = require('express');
 const authRoutes = require('./authRoutes');
-const { authenticateToken } = require('../middlewares/auth');
+const pageRoutes = require('./pageRoutes');
+const {authenticateToken} = require("../middlewares/auth");
+
 
 
 const router = express.Router();
 
 router.use('/auth', authRoutes);
-
+router.use('/pages', pageRoutes);
 
 // API root endpoint
 router.get('/', (req, res) => {

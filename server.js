@@ -3,6 +3,10 @@ const dotenv = require('dotenv');
 const cors = require('cors');
 const routes = require('./src/routes/index');
 
+
+
+
+
 dotenv.config();
 
 const app = express();
@@ -16,6 +20,8 @@ app.use('/api', routes);
 
 
 
+
+
 // 404 handler
 app.use((req, res) => {
     res.status(404).json({ error: 'Route not found' });
@@ -23,7 +29,6 @@ app.use((req, res) => {
 
 
 // Mount all routes
-
 
 
 app.use((err,req, res, next)=>{
