@@ -36,6 +36,30 @@ const uploadBackgroundVideo = multer({
     }
 });
 
+
+const uploadTeamPhoto = multer({
+    storage:multerS3({
+        s3,
+        bucket :bucketName,
+        contentType: multerS3.AUTO_CONTENT_TYPE,
+        key: (req, file, cb) => {
+            const timestamp = Date.now();
+            const fileName = `about/team-section/${timestamp}-${file.originalname}`;
+            cb(null, fileName);
+        }
+    }),
+    fileFilter: (req, file, cb)=>{
+        if (file.mimetype.startsWith('image/')) {
+            cb(null, true);
+        } else {
+            cb(new Error('Only image files are allowed'), false);
+        }
+    },
+    limits:{
+        fileSize: 5 * 1024 * 1024, // 5MB
+    }
+})
+
 // Upload middleware for partner logos
 const uploadPartnerLogo = multer({
     storage: multerS3({
@@ -114,5 +138,6 @@ module.exports = {
     uploadPartnerLogo,
     deleteFile,
     s3,
+    uploadTeamPhoto,
     bucketName
 };
