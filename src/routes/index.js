@@ -4,6 +4,7 @@ const pageRoutes = require('./pageRoutes');
 const aboutRoutes = require('./aboutRoute');
 const publicRoutes = require('./publicRoutes');
 const awardsRoutes = require('./awardRoutes');
+const servicesRoutes = require('./servicesRoutes');
 // const {authenticateToken} = require("../middlewares/auth");
 
 const router = express.Router();
@@ -13,6 +14,7 @@ router.use('/pages', pageRoutes);
 router.use('/about', aboutRoutes);
 router.use('/public', publicRoutes);
 router.use('/awards', awardsRoutes);
+router.use('/services',servicesRoutes);
 
 // API root endpoint
 router.get('/', (req, res) => {

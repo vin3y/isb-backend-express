@@ -95,15 +95,87 @@ const uploadAwardImage = multer({
 
       // Clean award title for filename (remove special characters, spaces, etc.)
       const cleanTitle = awardTitle
-        .toLowerCase()
-        .replace(/[^a-z0-9]/g, '_') // Replace non-alphanumeric with underscore
-        .replace(/_+/g, '_') // Replace multiple underscores with single
-        .replace(/^_|_$/g, ''); // Remove leading/trailing underscores
+          .toLowerCase()
+          .replace(/[^a-z0-9]/g, '_') // Replace non-alphanumeric with underscore
+          .replace(/_+/g, '_') // Replace multiple underscores with single
+          .replace(/^_|_$/g, ''); // Remove leading/trailing underscores
 
       // Get file extension
       const fileExtension = file.originalname.split('.').pop();
 
       const fileName = `awards/award_image/${timestamp}-${cleanTitle}.${fileExtension}`;
+      cb(null, fileName);
+    },
+  }),
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only image files are allowed'), false);
+    }
+  },
+  limits: {
+    fileSize: 5 * 1024 * 1024, // 5MB
+  },
+});
+
+// Upload middleware for key offerings images
+const uploadKeyOfferingImage = multer({
+  storage: multerS3({
+    s3,
+    bucket: bucketName,
+    contentType: multerS3.AUTO_CONTENT_TYPE,
+    key: (req, file, cb) => {
+      const timestamp = Date.now();
+      const title = req.body.title || 'key-offering';
+
+      // Clean title for filename
+      const cleanTitle = title
+          .toLowerCase()
+          .replace(/[^a-z0-9]/g, '_')
+          .replace(/_+/g, '_')
+          .replace(/^_|_$/g, '');
+
+      // Get file extension
+      const fileExtension = file.originalname.split('.').pop();
+
+      const fileName = `services/key-offerings/${timestamp}-${cleanTitle}.${fileExtension}`;
+      cb(null, fileName);
+    },
+  }),
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only image files are allowed'), false);
+    }
+  },
+  limits: {
+    fileSize: 5 * 1024 * 1024, // 5MB
+  },
+});
+
+// Upload middleware for case studies images
+const uploadCaseStudyImage = multer({
+  storage: multerS3({
+    s3,
+    bucket: bucketName,
+    contentType: multerS3.AUTO_CONTENT_TYPE,
+    key: (req, file, cb) => {
+      const timestamp = Date.now();
+      const title = req.body.title || 'case-study';
+
+      // Clean title for filename
+      const cleanTitle = title
+          .toLowerCase()
+          .replace(/[^a-z0-9]/g, '_')
+          .replace(/_+/g, '_')
+          .replace(/^_|_$/g, '');
+
+      // Get file extension
+      const fileExtension = file.originalname.split('.').pop();
+
+      const fileName = `services/case-study/${timestamp}-${cleanTitle}.${fileExtension}`;
       cb(null, fileName);
     },
   }),
@@ -174,5 +246,7 @@ module.exports = {
   s3,
   uploadTeamPhoto,
   uploadAwardImage,
+  uploadKeyOfferingImage,
+  uploadCaseStudyImage,
   bucketName,
 };
