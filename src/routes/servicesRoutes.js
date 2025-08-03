@@ -15,16 +15,34 @@ router.get('/', authenticateToken, servicesController.getServicesPage);
 router.get('/key-offerings', authenticateToken, servicesController.getAllKeyOfferings);
 
 // Get single key offering by ID
-router.get('/key-offerings/:offeringId', authenticateToken, servicesController.getSingleKeyOffering);
+router.get(
+  '/key-offerings/:offeringId',
+  authenticateToken,
+  servicesController.getSingleKeyOffering
+);
 
 // Add new key offering (with image upload)
-router.post('/key-offerings', authenticateToken, uploadKeyOfferingImage.single('image'), servicesController.addKeyOffering);
+router.post(
+  '/key-offerings',
+  authenticateToken,
+  uploadKeyOfferingImage.single('image'),
+  servicesController.addKeyOffering
+);
 
 // Update existing key offering (with optional image upload)
-router.put('/key-offerings/:offeringId', authenticateToken, uploadKeyOfferingImage.single('image'), servicesController.updateKeyOffering);
+router.put(
+  '/key-offerings/:offeringId',
+  authenticateToken,
+  uploadKeyOfferingImage.single('image'),
+  servicesController.updateKeyOffering
+);
 
 // Delete key offering by ID
-router.delete('/key-offerings/:offeringId', authenticateToken, servicesController.deleteKeyOffering);
+router.delete(
+  '/key-offerings/:offeringId',
+  authenticateToken,
+  servicesController.deleteKeyOffering
+);
 
 // ============ CASE STUDIES ROUTES ============
 
@@ -35,10 +53,20 @@ router.get('/case-studies', authenticateToken, servicesController.getAllCaseStud
 router.get('/case-studies/:studyId', authenticateToken, servicesController.getSingleCaseStudy);
 
 // Add new case study (with image upload)
-router.post('/case-studies', authenticateToken, uploadCaseStudyImage.single('image'), servicesController.addCaseStudy);
+router.post(
+  '/case-studies',
+  authenticateToken,
+  uploadCaseStudyImage.single('image'),
+  servicesController.addCaseStudy
+);
 
 // Update existing case study (with optional image upload)
-router.put('/case-studies/:studyId', authenticateToken, uploadCaseStudyImage.single('image'), servicesController.updateCaseStudy);
+router.put(
+  '/case-studies/:studyId',
+  authenticateToken,
+  uploadCaseStudyImage.single('image'),
+  servicesController.updateCaseStudy
+);
 
 // Delete case study by ID
 router.delete('/case-studies/:studyId', authenticateToken, servicesController.deleteCaseStudy);

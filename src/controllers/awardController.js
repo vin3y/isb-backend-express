@@ -35,7 +35,7 @@ const getAllAwards = async (req, res) => {
 
     res.json({
       success: true,
-      id:page.id,
+      id: page.id,
       name: page.name,
       title: page.title,
       backgroundVideoUrl: page.background_video_url,
