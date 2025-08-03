@@ -3,6 +3,21 @@ const db = require('../config/db');
 // Get all pages with complete details and their sections (only published pages)
 const getAllPublicPages = async (req, res) => {
   try {
+    // First, let's check all pages regardless of status for debugging
+    const debugResult = await db.query(`SELECT 
+                id, 
+                name, 
+                title, 
+                background_video_url, 
+                background_thumbnail_url, 
+                status, 
+                updated_at 
+            FROM pages 
+            ORDER BY name`);
+
+    console.log('🔍 DEBUG: All pages in database:', debugResult.rows);
+
+    // Now get only published pages
     const result = await db.query(`SELECT 
                 id, 
                 name, 
@@ -17,172 +32,183 @@ const getAllPublicPages = async (req, res) => {
                 CASE name 
                     WHEN 'home' THEN 1 
                     WHEN 'about' THEN 2 
-                    WHEN 'awards' THEN 3
-                    ELSE 4 
+                    WHEN 'services' THEN 3
+                    WHEN 'awards' THEN 4
+                    WHEN 'musicalevents' THEN 5
+                    WHEN 'politicalevents' THEN 6
+                    ELSE 7 
                 END, 
                 name`);
+
+    console.log('📋 Published pages found:', result.rows.map(p => ({ name: p.name, status: p.status })));
 
     const pages = [];
 
     // Process each page and add its specific data
     for (const page of result.rows) {
+      console.log(`🔄 Processing page: ${page.name}`);
       const pageData = { ...page };
 
       switch (page.name) {
         case 'home':
-          // Fetch partners for home page
+          console.log('🏠 Processing home page');
           const partnersResult = await db.query(
-            `
-                        SELECT 
-                            id, 
-                            name, 
-                            logo_url, 
-                            order_index 
-                        FROM partners 
-                        WHERE page_id = $1 
-                        ORDER BY order_index, created_at
-                    `,
-            [page.id]
+              `SELECT id, name, logo_url, order_index 
+             FROM partners 
+             WHERE page_id = $1 
+             ORDER BY order_index, created_at`,
+              [page.id]
           );
           pageData.partners = partnersResult.rows;
+          console.log(`🏠 Found ${partnersResult.rows.length} partners`);
           break;
 
         case 'about':
-          // Fetch vision and mission sections
+          console.log('ℹ️ Processing about page');
           const sectionsResult = await db.query(
-            `
-                        SELECT 
-                            section_type, 
-                            content 
-                        FROM about_sections 
-                        WHERE page_id = $1
-                    `,
-            [page.id]
+              `SELECT section_type, content 
+             FROM about_sections 
+             WHERE page_id = $1`,
+              [page.id]
           );
 
-          // Fetch team members
           const teamResult = await db.query(
-            `
-                        SELECT 
-                            id, 
-                            name, 
-                            designation, 
-                            photo_url, 
-                            order_index 
-                        FROM team_members 
-                        WHERE page_id = $1 
-                        ORDER BY order_index, created_at
-                    `,
-            [page.id]
+              `SELECT id, name, designation, photo_url, order_index 
+             FROM team_members 
+             WHERE page_id = $1 
+             ORDER BY order_index, created_at`,
+              [page.id]
           );
 
-          // Structure the about page data
           pageData.sections = {};
           sectionsResult.rows.forEach((section) => {
             pageData.sections[section.section_type] = section.content;
           });
           pageData.team = teamResult.rows;
+          console.log(`ℹ️ Found ${sectionsResult.rows.length} sections and ${teamResult.rows.length} team members`);
           break;
 
         case 'services':
-          // Fetch key offerings for services page (limit to 4 for main website)
+          console.log('🛠️ Processing services page');
           const keyOfferingsResult = await db.query(
-            `
-                    SELECT 
-                        id,
-                        title,
-                        description,
-                        image_url,
-                        order_index,
-                        created_at,
-                        updated_at
-                    FROM key_offerings 
-                    WHERE page_id = $1 
-                    ORDER BY order_index ASC, created_at ASC
-                    LIMIT 4
-                `,
-            [page.id]
+              `SELECT id, title, description, image_url, order_index, created_at, updated_at
+             FROM key_offerings 
+             WHERE page_id = $1 
+             ORDER BY order_index ASC, created_at ASC
+             LIMIT 4`,
+              [page.id]
           );
 
-          // Fetch case studies for services page (limit to 2 for main website)
           const caseStudiesResult = await db.query(
-            `
-                    SELECT 
-                        id,
-                        title,
-                        description,
-                        image_url,
-                        order_index,
-                        created_at,
-                        updated_at
-                    FROM case_studies 
-                    WHERE page_id = $1 
-                    ORDER BY order_index ASC, created_at ASC
-                    LIMIT 2
-                `,
-            [page.id]
+              `SELECT id, title, description, image_url, order_index, created_at, updated_at
+             FROM case_studies 
+             WHERE page_id = $1 
+             ORDER BY order_index ASC, created_at ASC
+             LIMIT 2`,
+              [page.id]
           );
 
-          page.keyOfferings = keyOfferingsResult.rows;
-          page.caseStudies = caseStudiesResult.rows;
-          page.totalKeyOfferings = keyOfferingsResult.rows.length;
-          page.totalCaseStudies = caseStudiesResult.rows.length;
+          pageData.keyOfferings = keyOfferingsResult.rows;
+          pageData.caseStudies = caseStudiesResult.rows;
+          pageData.totalKeyOfferings = keyOfferingsResult.rows.length;
+          pageData.totalCaseStudies = caseStudiesResult.rows.length;
+          console.log(`🛠️ Found ${keyOfferingsResult.rows.length} key offerings and ${caseStudiesResult.rows.length} case studies`);
           break;
 
         case 'awards':
-          // Fetch awards for awards page
+          console.log('🏆 Processing awards page');
           const awardsResult = await db.query(
-            `
-                        SELECT 
-                            id,
-                            award_name,
-                            award_year,
-                            award_description,
-                            award_image_url,
-                            order_index,
-                            created_at,
-                            updated_at
-                        FROM awards 
-                        WHERE page_id = $1 
-                        ORDER BY award_year DESC, order_index ASC, created_at DESC
-                    `,
-            [page.id]
+              `SELECT id, award_name, award_year, award_description, award_image_url, order_index, created_at, updated_at
+             FROM awards 
+             WHERE page_id = $1 
+             ORDER BY award_year DESC, order_index ASC, created_at DESC`,
+              [page.id]
           );
 
-          // Fetch unique years for filtering
           const yearsResult = await db.query(
-            `
-                        SELECT DISTINCT award_year, COUNT(*) as award_count
-                        FROM awards
-                        WHERE page_id = $1
-                        GROUP BY award_year
-                        ORDER BY award_year DESC
-                    `,
-            [page.id]
+              `SELECT DISTINCT award_year, COUNT(*) as award_count
+             FROM awards
+             WHERE page_id = $1
+             GROUP BY award_year
+             ORDER BY award_year DESC`,
+              [page.id]
           );
 
           pageData.awards = awardsResult.rows;
           pageData.totalAwards = awardsResult.rows.length;
           pageData.years = yearsResult.rows;
+          console.log(`🏆 Found ${awardsResult.rows.length} awards`);
+          break;
+
+        case 'musicalevents':
+          console.log('🎵 Processing musical events page');
+          // Check if why_watch_isbc table exists and has data
+          try {
+            const whyWatchResult = await db.query(
+                `SELECT id, title, image_url, order_index, created_at, updated_at
+               FROM why_watch_isbc 
+               WHERE page_id = $1 
+               ORDER BY order_index ASC, created_at ASC
+               LIMIT 4`,
+                [page.id]
+            );
+
+            pageData.whyWatchItems = whyWatchResult.rows;
+            pageData.totalWhyWatchItems = whyWatchResult.rows.length;
+            console.log(`🎵 Found ${whyWatchResult.rows.length} why watch items for musical events`);
+          } catch (error) {
+            console.error('❌ Error fetching why_watch_isbc data:', error.message);
+            // Set empty arrays if table doesn't exist yet
+            pageData.whyWatchItems = [];
+            pageData.totalWhyWatchItems = 0;
+          }
+          break;
+
+        case 'politicalevents':
+          console.log('🏛️ Processing political events page');
+          // Check if isbc_standout table exists and has data
+          try {
+            const standoutResult = await db.query(
+                `SELECT id, title, image_url, order_index, created_at, updated_at
+               FROM isbc_standout 
+               WHERE page_id = $1 
+               ORDER BY order_index ASC, created_at ASC
+               LIMIT 4`,
+                [page.id]
+            );
+
+            pageData.standoutItems = standoutResult.rows;
+            pageData.totalStandoutItems = standoutResult.rows.length;
+            console.log(`🏛️ Found ${standoutResult.rows.length} standout items for political events`);
+          } catch (error) {
+            console.error('❌ Error fetching isbc_standout data:', error.message);
+            // Set empty arrays if table doesn't exist yet
+            pageData.standoutItems = [];
+            pageData.totalStandoutItems = 0;
+          }
           break;
 
         default:
-          // For other pages, no additional data needed
+          console.log(`❓ Unknown page type: ${page.name}`);
           break;
       }
 
       pages.push(pageData);
+      console.log(`✅ Completed processing page: ${page.name}`);
     }
+
+    console.log(`🎯 Final result: ${pages.length} pages processed`);
 
     res.json({
       pages: pages,
       total: pages.length,
     });
   } catch (error) {
-    console.error('Error fetching public pages:', error);
+    console.error('💥 Error fetching public pages:', error);
     res.status(500).json({ error: 'Server error' });
   }
 };
+
 
 // Get specific page details (only if published)
 const getPublicPageDetails = async (req, res) => {
@@ -191,7 +217,7 @@ const getPublicPageDetails = async (req, res) => {
   try {
     // Get page data
     const pageResult = await db.query(
-      `
+        `
             SELECT 
                 id, 
                 name, 
@@ -203,7 +229,7 @@ const getPublicPageDetails = async (req, res) => {
             FROM pages 
             WHERE name = $1 AND status = 'published'
         `,
-      [pageName]
+        [pageName]
     );
 
     if (pageResult.rows.length === 0) {
@@ -217,7 +243,7 @@ const getPublicPageDetails = async (req, res) => {
       case 'home':
         // Fetch partners for home page
         const partnersResult = await db.query(
-          `
+            `
                     SELECT 
                         id, 
                         name, 
@@ -227,7 +253,7 @@ const getPublicPageDetails = async (req, res) => {
                     WHERE page_id = $1 
                     ORDER BY order_index, created_at
                 `,
-          [page.id]
+            [page.id]
         );
         page.partners = partnersResult.rows;
         break;
@@ -235,19 +261,19 @@ const getPublicPageDetails = async (req, res) => {
       case 'about':
         // Fetch vision and mission sections
         const sectionsResult = await db.query(
-          `
+            `
                     SELECT 
                         section_type, 
                         content 
                     FROM about_sections 
                     WHERE page_id = $1
                 `,
-          [page.id]
+            [page.id]
         );
 
         // Fetch team members
         const teamResult = await db.query(
-          `
+            `
                     SELECT 
                         id, 
                         name, 
@@ -258,7 +284,7 @@ const getPublicPageDetails = async (req, res) => {
                     WHERE page_id = $1 
                     ORDER BY order_index, created_at
                 `,
-          [page.id]
+            [page.id]
         );
 
         // Structure the about page data
@@ -269,10 +295,53 @@ const getPublicPageDetails = async (req, res) => {
         page.team = teamResult.rows;
         break;
 
+      case 'services':
+        // Fetch key offerings for services page
+        const keyOfferingsResult = await db.query(
+            `
+                    SELECT 
+                        id,
+                        title,
+                        description,
+                        image_url,
+                        order_index,
+                        created_at,
+                        updated_at
+                    FROM key_offerings 
+                    WHERE page_id = $1 
+                    ORDER BY order_index ASC, created_at ASC
+                `,
+            [page.id]
+        );
+
+        // Fetch case studies for services page
+        const caseStudiesResult = await db.query(
+            `
+                    SELECT 
+                        id,
+                        title,
+                        description,
+                        image_url,
+                        order_index,
+                        created_at,
+                        updated_at
+                    FROM case_studies 
+                    WHERE page_id = $1 
+                    ORDER BY order_index ASC, created_at ASC
+                `,
+            [page.id]
+        );
+
+        page.keyOfferings = keyOfferingsResult.rows;
+        page.caseStudies = caseStudiesResult.rows;
+        page.totalKeyOfferings = keyOfferingsResult.rows.length;
+        page.totalCaseStudies = caseStudiesResult.rows.length;
+        break;
+
       case 'awards':
         // Fetch awards for awards page
         const awardsResult = await db.query(
-          `
+            `
                     SELECT 
                         id,
                         award_name,
@@ -286,24 +355,68 @@ const getPublicPageDetails = async (req, res) => {
                     WHERE page_id = $1 
                     ORDER BY award_year DESC, order_index ASC, created_at DESC
                 `,
-          [page.id]
+            [page.id]
         );
 
         // Fetch unique years for filtering
         const yearsResult = await db.query(
-          `
+            `
                     SELECT DISTINCT award_year, COUNT(*) as award_count
                     FROM awards
                     WHERE page_id = $1
                     GROUP BY award_year
                     ORDER BY award_year DESC
                 `,
-          [page.id]
+            [page.id]
         );
 
         page.awards = awardsResult.rows;
         page.totalAwards = awardsResult.rows.length;
         page.years = yearsResult.rows;
+        break;
+
+      case 'musicalevents':
+        // Fetch why watch ISBC items for musical events page
+        const whyWatchResult = await db.query(
+            `
+                    SELECT 
+                        id,
+                        title,
+                        image_url,
+                        order_index,
+                        created_at,
+                        updated_at
+                    FROM why_watch_isbc 
+                    WHERE page_id = $1 
+                    ORDER BY order_index ASC, created_at ASC
+                `,
+            [page.id]
+        );
+
+        page.whyWatchItems = whyWatchResult.rows;
+        page.totalWhyWatchItems = whyWatchResult.rows.length;
+        break;
+
+      case 'politicalevents':
+        // Fetch ISBC standout items for political events page
+        const standoutResult = await db.query(
+            `
+                    SELECT 
+                        id,
+                        title,
+                        image_url,
+                        order_index,
+                        created_at,
+                        updated_at
+                    FROM isbc_standout 
+                    WHERE page_id = $1 
+                    ORDER BY order_index ASC, created_at ASC
+                `,
+            [page.id]
+        );
+
+        page.standoutItems = standoutResult.rows;
+        page.totalStandoutItems = standoutResult.rows.length;
         break;
 
       default:
@@ -324,7 +437,7 @@ const getPageBackground = async (req, res) => {
 
   try {
     const result = await db.query(
-      `
+        `
             SELECT 
                 name, 
                 title, 
@@ -333,7 +446,7 @@ const getPageBackground = async (req, res) => {
             FROM pages 
             WHERE name = $1 AND status = 'published'
         `,
-      [pageName]
+        [pageName]
     );
 
     if (result.rows.length === 0) {
@@ -362,8 +475,11 @@ const getAllPagesBackground = async (req, res) => {
                 CASE name 
                     WHEN 'home' THEN 1 
                     WHEN 'about' THEN 2 
-                    WHEN 'awards' THEN 3
-                    ELSE 4 
+                    WHEN 'services' THEN 3
+                    WHEN 'awards' THEN 4
+                    WHEN 'musicalevents' THEN 5
+                    WHEN 'politicalevents' THEN 6
+                    ELSE 7 
                 END, 
                 name
         `);
@@ -406,7 +522,7 @@ const getPublicAwardsByYear = async (req, res) => {
     const pageId = pageResult.rows[0].id;
 
     const awardsResult = await db.query(
-      `
+        `
             SELECT 
                 id,
                 award_name,
@@ -420,7 +536,7 @@ const getPublicAwardsByYear = async (req, res) => {
             WHERE page_id = $1 AND award_year = $2
             ORDER BY order_index ASC, created_at DESC
         `,
-      [pageId, awardYear]
+        [pageId, awardYear]
     );
 
     res.json({
