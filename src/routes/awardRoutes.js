@@ -1,10 +1,8 @@
 const express = require('express');
-const {authenticateToken} = require("../middlewares/auth");
-const {uploadAwardImage} = require("../utils/s3");
+const { authenticateToken } = require('../middlewares/auth');
+const { uploadAwardImage } = require('../utils/s3');
 const router = express.Router();
 const awardsController = require('../controllers/awardController');
-
-
 
 // GET routes
 // Get all awards for awards page
@@ -21,11 +19,21 @@ router.get('/:awardId', authenticateToken, awardsController.getSingleAward);
 
 // POST routes
 // Add new award (with image upload)
-router.post('/', authenticateToken, uploadAwardImage.single('awardImage'), awardsController.addAward);
+router.post(
+  '/',
+  authenticateToken,
+  uploadAwardImage.single('awardImage'),
+  awardsController.addAward
+);
 
 // PUT routes
 // Update existing award (with optional image upload)
-router.put('/:awardId', authenticateToken, uploadAwardImage.single('awardImage'), awardsController.updateAward);
+router.put(
+  '/:awardId',
+  authenticateToken,
+  uploadAwardImage.single('awardImage'),
+  awardsController.updateAward
+);
 
 // DELETE routes
 // Delete award by ID

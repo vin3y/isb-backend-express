@@ -14,8 +14,18 @@ router.put('/mission', authenticateToken, aboutController.updateMission);
 // Team member routes
 router.get('/team', authenticateToken, aboutController.getAllTeamMembers);
 router.get('/team/:memberId', authenticateToken, aboutController.getTeamMember);
-router.post('/team', authenticateToken, uploadTeamPhoto.single('photo'), aboutController.addTeamMember);
-router.put('/team/:memberId', authenticateToken, uploadTeamPhoto.single('photo'), aboutController.updateTeamMember);
+router.post(
+  '/team',
+  authenticateToken,
+  uploadTeamPhoto.single('photo'),
+  aboutController.addTeamMember
+);
+router.put(
+  '/team/:memberId',
+  authenticateToken,
+  uploadTeamPhoto.single('photo'),
+  aboutController.updateTeamMember
+);
 router.delete('/team/:memberId', authenticateToken, aboutController.deleteTeamMember);
 
 module.exports = router;
