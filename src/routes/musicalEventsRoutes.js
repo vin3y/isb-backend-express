@@ -4,7 +4,6 @@ const { uploadWhyWatchISBCImage } = require('../utils/s3');
 const router = express.Router();
 const musicalEventsController = require('../controllers/musicalEventsController');
 
-
 // ============ MUSICAL EVENTS PAGE ROUTES ============
 
 // Get complete musical events page data
@@ -20,18 +19,18 @@ router.get('/why-watch/:itemId', authenticateToken, musicalEventsController.getS
 
 // Add new why watch item (with image upload)
 router.post(
-    '/why-watch',
-    authenticateToken,
-    uploadWhyWatchISBCImage.single('image'),
-    musicalEventsController.addWhyWatchItem
+  '/why-watch',
+  authenticateToken,
+  uploadWhyWatchISBCImage.single('image'),
+  musicalEventsController.addWhyWatchItem
 );
 
 // Update existing why watch item (with optional image upload)
 router.put(
-    '/why-watch/:itemId',
-    authenticateToken,
-    uploadWhyWatchISBCImage.single('image'),
-    musicalEventsController.updateWhyWatchItem
+  '/why-watch/:itemId',
+  authenticateToken,
+  uploadWhyWatchISBCImage.single('image'),
+  musicalEventsController.updateWhyWatchItem
 );
 
 // Delete why watch item by ID

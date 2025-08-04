@@ -6,6 +6,7 @@ const publicRoutes = require('./publicRoutes');
 const awardsRoutes = require('./awardRoutes');
 const servicesRoutes = require('./servicesRoutes');
 const musicalEventsRoutes = require('./musicalEventsRoutes');
+const politicalEventsRoutes = require('./politicalEventsRoutes');
 // const {authenticateToken} = require("../middlewares/auth");
 
 const router = express.Router();
@@ -17,6 +18,7 @@ router.use('/public', publicRoutes);
 router.use('/awards', awardsRoutes);
 router.use('/services', servicesRoutes);
 router.use('/musicalevents', musicalEventsRoutes);
+router.use('/politicalevents',politicalEventsRoutes);
 
 // API root endpoint
 router.get('/', (req, res) => {
