@@ -1,6 +1,7 @@
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const db = require('../config/db');
+const { activityLoggers } = require('../middlewares/activityLogger');
 
 // Generate access token (2 hours)
 const generateAccessToken = (user) => {
@@ -47,6 +48,11 @@ const login = async (req, res) => {
 
     if (userResult.rows.length === 0) {
       await logLoginAttempt(null, clientIp, userAgent, false);
+
+      // Log failed login attempt with activity logger
+      const mockReq = { ip: clientIp, get: () => userAgent, user: null };
+      await activityLoggers.auth.logLogin(mockReq, false, email || 'unknown', 'User not found');
+
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
@@ -57,6 +63,15 @@ const login = async (req, res) => {
 
     if (!validPassword) {
       await logLoginAttempt(user.id, clientIp, userAgent, false);
+
+      // Log failed login attempt with activity logger
+      const mockReq = {
+        ip: clientIp,
+        get: () => userAgent,
+        user: { id: user.id, email: user.email },
+      };
+      await activityLoggers.auth.logLogin(mockReq, false, email, 'Invalid password');
+
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
@@ -68,6 +83,15 @@ const login = async (req, res) => {
 
     if (passwordExpired) {
       await logLoginAttempt(user.id, clientIp, userAgent, false);
+
+      // Log failed login attempt due to expired password
+      const mockReq = {
+        ip: clientIp,
+        get: () => userAgent,
+        user: { id: user.id, email: user.email },
+      };
+      await activityLoggers.auth.logLogin(mockReq, false, email, 'Password expired');
+
       return res.status(403).json({
         error: 'Password has expired. Please reset your password.',
         passwordExpired: true,
@@ -88,6 +112,14 @@ const login = async (req, res) => {
 
     // Log successful login
     await logLoginAttempt(user.id, clientIp, userAgent, true);
+
+    // Log successful login with activity logger
+    const mockReq = {
+      ip: clientIp,
+      get: () => userAgent,
+      user: { id: user.id, email: user.email },
+    };
+    await activityLoggers.auth.logLogin(mockReq, true, email);
 
     res.json({
       accessToken,
@@ -184,6 +216,11 @@ const logout = async (req, res) => {
     }
   }
 
+  // Log the logout activity
+  if (req.user) {
+    await activityLoggers.auth.logLogout(req, req.user.email);
+  }
+
   res.json({ message: 'Logged out successfully' });
 };
 
@@ -236,6 +273,9 @@ const resetPassword = async (req, res) => {
     // Revoke all existing refresh tokens for this user
     await db.query('UPDATE refresh_tokens SET revoked = true WHERE user_id = $1', [userId]);
 
+    // Log the password reset activity
+    await activityLoggers.auth.logPasswordReset(req, req.user.email);
+
     res.json({
       message: 'Password reset successfully',
       requiresRelogin: true,
@@ -256,7 +296,14 @@ const getLoginHistory = async (req, res) => {
        ORDER BY lh.login_time DESC 
        LIMIT 100`
     );
-    res.json(result.rows);
+
+    // Add time_ago to each record
+    const loginHistory = result.rows.map((row) => ({
+      ...row,
+      time_ago: getTimeAgo(new Date(row.login_time)),
+    }));
+
+    res.json(loginHistory);
   } catch (error) {
     console.error('Error fetching login history:', error);
     res.status(500).json({ error: 'Server error' });
@@ -292,6 +339,19 @@ const getPasswordStatus = async (req, res) => {
     res.status(500).json({ error: 'Server error' });
   }
 };
+
+// Helper function to calculate time ago
+function getTimeAgo(date) {
+  const now = new Date();
+  const diffInSeconds = Math.floor((now - date) / 1000);
+
+  if (diffInSeconds < 60) return `${diffInSeconds} seconds ago`;
+  if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)} minutes ago`;
+  if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)} hours ago`;
+  if (diffInSeconds < 604800) return `${Math.floor(diffInSeconds / 86400)} days ago`;
+
+  return date.toLocaleDateString();
+}
 
 module.exports = {
   login,

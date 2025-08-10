@@ -1,4 +1,6 @@
+// controllers/awardController.js
 const db = require('../config/db');
+const { activityLoggers } = require('../middlewares/activityLogger');
 const { deleteFile } = require('../utils/s3');
 
 // Get all awards for awards page
@@ -153,16 +155,40 @@ const addAward = async (req, res) => {
       ]
     );
 
+    const newAward = result.rows[0];
+
+    // Log the award creation activity
+    await activityLoggers.award.logCreate(req, newAward.id, newAward.award_name, {
+      award_year: newAward.award_year,
+      award_description: newAward.award_description,
+      award_image_url: newAward.award_image_url,
+      order_index: newAward.order_index,
+    });
+
+    // Log file upload
+    await activityLoggers.award.logFileUpload(
+      req,
+      newAward.id,
+      newAward.award_name,
+      'award_image',
+      req.file.originalname,
+      req.file.location,
+      req.file.size
+    );
+
     // Set page to draft when content is modified
     await db.query(
       "UPDATE pages SET status = 'draft', updated_at = CURRENT_TIMESTAMP WHERE id = $1",
       [pageId]
     );
 
+    // Log page status change to draft
+    await activityLoggers.pageContent.logStatusChange(req, 'awards', 'published', 'draft');
+
     res.status(201).json({
       success: true,
       message: 'Award added successfully. Page saved as draft.',
-      award: result.rows[0],
+      award: newAward,
     });
   } catch (error) {
     console.error('Error adding award:', error);
@@ -196,6 +222,17 @@ const updateAward = async (req, res) => {
   }
 
   try {
+    // Get old award data for logging
+    const oldAwardResult = await db.query('SELECT * FROM awards WHERE id = $1', [awardId]);
+    if (oldAwardResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Award not found',
+      });
+    }
+
+    const oldAward = oldAwardResult.rows[0];
+
     // Get awards page ID
     const pageResult = await db.query('SELECT id FROM pages WHERE name = $1', ['awards']);
     if (pageResult.rows.length === 0) {
@@ -210,13 +247,9 @@ const updateAward = async (req, res) => {
     let updateQuery, updateParams;
 
     if (req.file) {
-      // Get old image URL to delete from S3
-      const oldImageResult = await db.query('SELECT award_image_url FROM awards WHERE id = $1', [
-        awardId,
-      ]);
-
-      if (oldImageResult.rows.length > 0 && oldImageResult.rows[0].award_image_url) {
-        await deleteFile(oldImageResult.rows[0].award_image_url);
+      // Delete old image from S3
+      if (oldAward.award_image_url) {
+        await deleteFile(oldAward.award_image_url);
       }
 
       // Update with new image
@@ -261,12 +294,40 @@ const updateAward = async (req, res) => {
     }
 
     const result = await db.query(updateQuery, updateParams);
+    const updatedAward = result.rows[0];
 
-    if (result.rows.length === 0) {
-      return res.status(404).json({
-        success: false,
-        error: 'Award not found',
-      });
+    // Log the update activity
+    await activityLoggers.award.logUpdate(
+      req,
+      updatedAward.id,
+      updatedAward.award_name,
+      {
+        award_name: oldAward.award_name,
+        award_year: oldAward.award_year,
+        award_description: oldAward.award_description,
+        award_image_url: oldAward.award_image_url,
+        order_index: oldAward.order_index,
+      },
+      {
+        award_name: updatedAward.award_name,
+        award_year: updatedAward.award_year,
+        award_description: updatedAward.award_description,
+        award_image_url: updatedAward.award_image_url,
+        order_index: updatedAward.order_index,
+      }
+    );
+
+    // Log file upload if new image was uploaded
+    if (req.file) {
+      await activityLoggers.award.logFileUpload(
+        req,
+        updatedAward.id,
+        updatedAward.award_name,
+        'award_image',
+        req.file.originalname,
+        req.file.location,
+        req.file.size
+      );
     }
 
     // Set page to draft when content is modified
@@ -275,10 +336,13 @@ const updateAward = async (req, res) => {
       [pageId]
     );
 
+    // Log page status change to draft
+    await activityLoggers.pageContent.logStatusChange(req, 'awards', 'published', 'draft');
+
     res.json({
       success: true,
       message: 'Award updated successfully. Page saved as draft.',
-      award: result.rows[0],
+      award: updatedAward,
     });
   } catch (error) {
     console.error('Error updating award:', error);
@@ -305,11 +369,8 @@ const deleteAward = async (req, res) => {
 
     const pageId = pageResult.rows[0].id;
 
-    // Get award details to delete image from S3
-    const awardResult = await db.query(
-      'SELECT award_name, award_image_url FROM awards WHERE id = $1',
-      [awardId]
-    );
+    // Get award details for logging and to delete image from S3
+    const awardResult = await db.query('SELECT * FROM awards WHERE id = $1', [awardId]);
 
     if (awardResult.rows.length === 0) {
       return res.status(404).json({
@@ -328,11 +389,22 @@ const deleteAward = async (req, res) => {
     // Delete from database
     const deleteResult = await db.query('DELETE FROM awards WHERE id = $1 RETURNING *', [awardId]);
 
+    // Log the deletion activity
+    await activityLoggers.award.logDelete(req, awardData.id, awardData.award_name, {
+      award_year: awardData.award_year,
+      award_description: awardData.award_description,
+      award_image_url: awardData.award_image_url,
+      order_index: awardData.order_index,
+    });
+
     // Set page to draft when content is modified
     await db.query(
       "UPDATE pages SET status = 'draft', updated_at = CURRENT_TIMESTAMP WHERE id = $1",
       [pageId]
     );
+
+    // Log page status change to draft
+    await activityLoggers.pageContent.logStatusChange(req, 'awards', 'published', 'draft');
 
     res.json({
       success: true,

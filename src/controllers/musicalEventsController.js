@@ -1,5 +1,6 @@
 const db = require('../config/db');
 const { deleteFile } = require('../utils/s3');
+const { activityLoggers } = require('../middlewares/activityLogger');
 
 // Get complete musical events page data
 const getMusicalEventsPage = async (req, res) => {
@@ -164,16 +165,38 @@ const addWhyWatchItem = async (req, res) => {
       [pageId, title.trim(), req.file.location, orderIndex ? parseInt(orderIndex) : 0]
     );
 
+    const newItem = result.rows[0];
+
+    // Log the why watch item creation activity
+    await activityLoggers.whyWatch.logCreate(req, newItem.id, newItem.title, {
+      image_url: newItem.image_url,
+      order_index: newItem.order_index,
+    });
+
+    // Log file upload
+    await activityLoggers.whyWatch.logFileUpload(
+      req,
+      newItem.id,
+      newItem.title,
+      'why_watch_image',
+      req.file.originalname,
+      req.file.location,
+      req.file.size
+    );
+
     // Set page to draft when content is modified
     await db.query(
       "UPDATE pages SET status = 'draft', updated_at = CURRENT_TIMESTAMP WHERE id = $1",
       [pageId]
     );
 
+    // Log page status change to draft
+    await activityLoggers.pageContent.logStatusChange(req, 'musicalevents', 'published', 'draft');
+
     res.status(201).json({
       success: true,
       message: 'Why watch item added successfully. Page saved as draft.',
-      whyWatchItem: result.rows[0],
+      whyWatchItem: newItem,
     });
   } catch (error) {
     console.error('Error adding why watch item:', error);
@@ -198,6 +221,18 @@ const updateWhyWatchItem = async (req, res) => {
   }
 
   try {
+    // Get old data for logging
+    const oldDataQuery = 'SELECT * FROM why_watch_isbc WHERE id = $1';
+    const oldDataResult = await db.query(oldDataQuery, [itemId]);
+    const oldItem = oldDataResult.rows[0];
+
+    if (!oldItem) {
+      return res.status(404).json({
+        success: false,
+        error: 'Why watch item not found',
+      });
+    }
+
     // Get musical events page ID
     const pageResult = await db.query('SELECT id FROM pages WHERE name = $1', ['musicalevents']);
     if (pageResult.rows.length === 0) {
@@ -212,13 +247,9 @@ const updateWhyWatchItem = async (req, res) => {
     let updateQuery, updateParams;
 
     if (req.file) {
-      // Get old image URL to delete from S3
-      const oldImageResult = await db.query('SELECT image_url FROM why_watch_isbc WHERE id = $1', [
-        itemId,
-      ]);
-
-      if (oldImageResult.rows.length > 0 && oldImageResult.rows[0].image_url) {
-        await deleteFile(oldImageResult.rows[0].image_url);
+      // Delete old image from S3
+      if (oldItem.image_url) {
+        await deleteFile(oldItem.image_url);
       }
 
       // Update with new image
@@ -244,12 +275,36 @@ const updateWhyWatchItem = async (req, res) => {
     }
 
     const result = await db.query(updateQuery, updateParams);
+    const updatedItem = result.rows[0];
 
-    if (result.rows.length === 0) {
-      return res.status(404).json({
-        success: false,
-        error: 'Why watch item not found',
-      });
+    // Log the update activity
+    await activityLoggers.whyWatch.logUpdate(
+      req,
+      updatedItem.id,
+      updatedItem.title,
+      {
+        title: oldItem.title,
+        image_url: oldItem.image_url,
+        order_index: oldItem.order_index,
+      },
+      {
+        title: updatedItem.title,
+        image_url: updatedItem.image_url,
+        order_index: updatedItem.order_index,
+      }
+    );
+
+    // Log file upload if new image was uploaded
+    if (req.file) {
+      await activityLoggers.whyWatch.logFileUpload(
+        req,
+        updatedItem.id,
+        updatedItem.title,
+        'why_watch_image',
+        req.file.originalname,
+        req.file.location,
+        req.file.size
+      );
     }
 
     // Set page to draft when content is modified
@@ -258,10 +313,13 @@ const updateWhyWatchItem = async (req, res) => {
       [pageId]
     );
 
+    // Log page status change to draft
+    await activityLoggers.pageContent.logStatusChange(req, 'musicalevents', 'published', 'draft');
+
     res.json({
       success: true,
       message: 'Why watch item updated successfully. Page saved as draft.',
-      whyWatchItem: result.rows[0],
+      whyWatchItem: updatedItem,
     });
   } catch (error) {
     console.error('Error updating why watch item:', error);
@@ -288,10 +346,8 @@ const deleteWhyWatchItem = async (req, res) => {
 
     const pageId = pageResult.rows[0].id;
 
-    // Get why watch item details to delete image from S3
-    const itemResult = await db.query('SELECT title, image_url FROM why_watch_isbc WHERE id = $1', [
-      itemId,
-    ]);
+    // Get why watch item details for logging and to delete image from S3
+    const itemResult = await db.query('SELECT * FROM why_watch_isbc WHERE id = $1', [itemId]);
 
     if (itemResult.rows.length === 0) {
       return res.status(404).json({
@@ -310,11 +366,20 @@ const deleteWhyWatchItem = async (req, res) => {
     // Delete from database
     await db.query('DELETE FROM why_watch_isbc WHERE id = $1', [itemId]);
 
+    // Log the deletion activity
+    await activityLoggers.whyWatch.logDelete(req, itemData.id, itemData.title, {
+      image_url: itemData.image_url,
+      order_index: itemData.order_index,
+    });
+
     // Set page to draft when content is modified
     await db.query(
       "UPDATE pages SET status = 'draft', updated_at = CURRENT_TIMESTAMP WHERE id = $1",
       [pageId]
     );
+
+    // Log page status change to draft
+    await activityLoggers.pageContent.logStatusChange(req, 'musicalevents', 'published', 'draft');
 
     res.json({
       success: true,
