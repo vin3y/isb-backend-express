@@ -208,6 +208,10 @@ const refreshToken = async (req, res) => {
 const logout = async (req, res) => {
   const { refreshToken } = req.body;
 
+  if (!refreshToken) {
+    return res.status(400).json({ error: 'Refresh token is required' });
+  }
+
   if (refreshToken) {
     try {
       await db.query('UPDATE refresh_tokens SET revoked = true WHERE token = $1', [refreshToken]);
