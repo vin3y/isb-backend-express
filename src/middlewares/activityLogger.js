@@ -1,5 +1,6 @@
 // src/middlewares/activityLogger.js
 const { pool } = require('../config/db'); // Adjust the path as necessary
+require('dotenv').config();
 
 // Activity logging utility function
 async function logActivity(

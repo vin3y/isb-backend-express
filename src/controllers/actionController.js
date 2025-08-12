@@ -5,8 +5,12 @@ const { authenticateToken } = require('../middlewares/auth');
 const getRecentActivities = async (req, res) => {
   try {
     let activities = [];
+
+    // Try to get from activity_log table first
     try {
-      const activityLogQuery = `SELECT 
+      // Simplified query to test if the issue is with the complex JOIN
+      const activityLogQuery = `
+        SELECT
           al.id,
           al.action_type,
           al.entity_type,
@@ -15,33 +19,17 @@ const getRecentActivities = async (req, res) => {
           al.description,
           al.created_at as timestamp,
           u.email as user_email,
-          al.ip_address,
-          p.name as page_name,
-          p.title as page_title
+          al.ip_address
         FROM activity_log al
         LEFT JOIN users u ON al.user_id = u.id
-        LEFT JOIN pages p ON (
-          CASE 
-            WHEN al.entity_type = 'page' OR al.entity_type = 'page_content' THEN 
-              CASE 
-                WHEN al.entity_name ~ '^(home|about|services|awards|musicalevents|politicalevents|partners|contact)' THEN 
-                  p.name = SPLIT_PART(al.entity_name, ' ', 1)
-                ELSE p.name = al.entity_name
-              END
-            WHEN al.entity_type = 'award' THEN p.name = 'awards'
-            WHEN al.entity_type = 'team_member' OR al.entity_type = 'about_section' THEN p.name = 'about'
-            WHEN al.entity_type = 'partner' THEN p.name = 'home'
-            WHEN al.entity_type = 'key_offering' OR al.entity_type = 'case_study' THEN p.name = 'services'
-            WHEN al.entity_type = 'why_watch' THEN p.name = 'musicalevents'
-            WHEN al.entity_type = 'standout' THEN p.name = 'politicalevents'
-            WHEN al.entity_type = 'valued_partner' THEN p.name = 'partners'
-            ELSE false
-          END
-        )
         ORDER BY al.created_at DESC
-        LIMIT 4`;
+        LIMIT 4
+      `;
 
+      console.log('Executing activity log query...');
       const result = await pool.query(activityLogQuery);
+      console.log(`Found ${result.rows.length} activity log entries`);
+
       if (result.rows.length > 0) {
         activities = result.rows.map((row) => ({
           id: `activity_${row.id}`,
@@ -54,21 +42,23 @@ const getRecentActivities = async (req, res) => {
           timestamp: row.timestamp,
           time_ago: getTimeAgo(new Date(row.timestamp)),
           page: {
-            name: row.page_name,
-            title: row.page_title || getPageDisplayName(row.page_name),
+            name: getPageNameFromEntityType(row.entity_type),
+            title: getPageDisplayName(getPageNameFromEntityType(row.entity_type)),
           },
           source: 'activity_log',
         }));
       }
     } catch (activityLogError) {
-      console.log('Activity log table not found, using fallback method');
+      console.error('Activity log query error:', activityLogError);
+      console.log('Activity log table query failed, using fallback method');
     }
 
     // If no activity log data or table doesn't exist, use fallback method
     if (activities.length === 0) {
+      console.log('Using fallback method for recent activities');
       const fallbackQuery = `
         (
-          SELECT 
+          SELECT
             'login' as action_type,
             'auth' as entity_type,
             lh.id as entity_id,
@@ -86,7 +76,7 @@ const getRecentActivities = async (req, res) => {
         )
         UNION ALL
         (
-          SELECT 
+          SELECT
             'content_update' as action_type,
             'page' as entity_type,
             p.id as entity_id,
@@ -151,72 +141,71 @@ const getPaginatedAcitivites = async (req, res) => {
 
     // Try to get from activity_log table first
     try {
-      const activityLogQuery = `
-        SELECT 
-          al.id,
-          al.action_type,
-          al.entity_type,
-          al.entity_id,
-          al.entity_name,
-          al.description,
-          al.created_at as timestamp,
-          u.email as user_email,
-          al.ip_address,
-          p.name as page_name,
-          p.title as page_title
-        FROM activity_log al
-        LEFT JOIN users u ON al.user_id = u.id
-        LEFT JOIN pages p ON (
-          CASE 
-            WHEN al.entity_type = 'page' OR al.entity_type = 'page_content' THEN 
-              CASE 
-                WHEN al.entity_name ~ '^(home|about|services|awards|musicalevents|politicalevents|partners|contact)' THEN 
-                  p.name = SPLIT_PART(al.entity_name, ' ', 1)
-                ELSE p.name = al.entity_name
-              END
-            WHEN al.entity_type = 'award' THEN p.name = 'awards'
-            WHEN al.entity_type = 'team_member' OR al.entity_type = 'about_section' THEN p.name = 'about'
-            WHEN al.entity_type = 'partner' THEN p.name = 'home'
-            WHEN al.entity_type = 'key_offering' OR al.entity_type = 'case_study' THEN p.name = 'services'
-            WHEN al.entity_type = 'why_watch' THEN p.name = 'musicalevents'
-            WHEN al.entity_type = 'standout' THEN p.name = 'politicalevents'
-            WHEN al.entity_type = 'valued_partner' THEN p.name = 'partners'
-            ELSE false
-          END
-        )
-        ORDER BY al.created_at DESC
-        LIMIT $1
+      // Test if table exists first
+      const tableExistsQuery = `
+        SELECT EXISTS (
+          SELECT FROM information_schema.tables 
+          WHERE table_schema = 'public' 
+          AND table_name = 'activity_log'
+        );
       `;
 
-      const result = await pool.query(activityLogQuery, [limit]);
+      const tableResult = await pool.query(tableExistsQuery);
+      const tableExists = tableResult.rows[0].exists;
 
-      if (result.rows.length > 0) {
-        activities = result.rows.map((row) => ({
-          id: `activity_${row.id}`,
-          action_type: row.action_type,
-          entity_type: row.entity_type,
-          entity_id: row.entity_id,
-          entity_name: row.entity_name,
-          description: row.description,
-          user_email: row.user_email,
-          timestamp: row.timestamp,
-          time_ago: getTimeAgo(new Date(row.timestamp)),
-          page: {
-            name: row.page_name,
-            title: row.page_title || getPageDisplayName(row.page_name),
-          },
-          source: 'activity_log',
-        }));
+      console.log(`Activity log table exists: ${tableExists}`);
+
+      if (tableExists) {
+        const activityLogQuery = `
+          SELECT
+            al.id,
+            al.action_type,
+            al.entity_type,
+            al.entity_id,
+            al.entity_name,
+            al.description,
+            al.created_at as timestamp,
+            u.email as user_email,
+            al.ip_address
+          FROM activity_log al
+          LEFT JOIN users u ON al.user_id = u.id
+          ORDER BY al.created_at DESC
+          LIMIT $1
+        `;
+
+        const result = await pool.query(activityLogQuery, [limit]);
+        console.log(`Retrieved ${result.rows.length} activities from activity_log`);
+
+        if (result.rows.length > 0) {
+          activities = result.rows.map((row) => ({
+            id: `activity_${row.id}`,
+            action_type: row.action_type,
+            entity_type: row.entity_type,
+            entity_id: row.entity_id,
+            entity_name: row.entity_name,
+            description: row.description,
+            user_email: row.user_email,
+            timestamp: row.timestamp,
+            time_ago: getTimeAgo(new Date(row.timestamp)),
+            page: {
+              name: getPageNameFromEntityType(row.entity_type),
+              title: getPageDisplayName(getPageNameFromEntityType(row.entity_type)),
+            },
+            source: 'activity_log',
+          }));
+        }
       }
     } catch (activityLogError) {
-      console.log('Activity log table not found, using fallback method');
+      console.error('Activity log query error:', activityLogError);
+      console.log('Activity log table query failed, using fallback method');
     }
 
-    // Fallback method if activity_log doesn't exist
+    // Fallback method if activity_log doesn't exist or has no data
     if (activities.length === 0) {
+      console.log('Using fallback method for paginated activities');
       const fallbackQuery = `
         (
-          SELECT 
+          SELECT
             'login' as action_type,
             'auth' as entity_type,
             lh.id as entity_id,
@@ -234,7 +223,7 @@ const getPaginatedAcitivites = async (req, res) => {
         )
         UNION ALL
         (
-          SELECT 
+          SELECT
             'content_update' as action_type,
             'page' as entity_type,
             p.id as entity_id,
@@ -250,79 +239,33 @@ const getPaginatedAcitivites = async (req, res) => {
           ORDER BY p.updated_at DESC
           LIMIT 3
         )
-        UNION ALL
-        (
-          SELECT 
-            'content_added' as action_type,
-            'award' as entity_type,
-            a.id as entity_id,
-            CONCAT('Added award "', a.award_name, '"') as description,
-            a.award_name as entity_name,
-            a.created_at as timestamp,
-            'system' as user_email,
-            null as ip_address,
-            'awards' as page_name,
-            'Awards' as page_title
-          FROM awards a
-          ORDER BY a.created_at DESC
-          LIMIT 2
-        )
-        UNION ALL
-        (
-          SELECT 
-            'content_added' as action_type,
-            'team_member' as entity_type,
-            tm.id as entity_id,
-            CONCAT('Added team member "', tm.name, '"') as description,
-            tm.name as entity_name,
-            tm.created_at as timestamp,
-            'system' as user_email,
-            null as ip_address,
-            'about' as page_name,
-            'About' as page_title
-          FROM team_members tm
-          ORDER BY tm.created_at DESC
-          LIMIT 2
-        )
-        UNION ALL
-        (
-          SELECT 
-            'content_added' as action_type,
-            'partner' as entity_type,
-            p.id as entity_id,
-            CONCAT('Added partner "', p.name, '"') as description,
-            p.name as entity_name,
-            p.created_at as timestamp,
-            'system' as user_email,
-            null as ip_address,
-            'home' as page_name,
-            'Home' as page_title
-          FROM partners p
-          ORDER BY p.created_at DESC
-          LIMIT 1
-        )
         ORDER BY timestamp DESC
         LIMIT $1
       `;
 
-      const fallbackResult = await pool.query(fallbackQuery, [limit]);
-
-      activities = fallbackResult.rows.map((row) => ({
-        id: `${row.action_type}_${row.entity_id}_${Date.parse(row.timestamp)}`,
-        action_type: row.action_type,
-        entity_type: row.entity_type,
-        entity_id: row.entity_id,
-        entity_name: row.entity_name,
-        description: row.description,
-        user_email: row.user_email,
-        timestamp: row.timestamp,
-        time_ago: getTimeAgo(new Date(row.timestamp)),
-        page: {
-          name: row.page_name,
-          title: row.page_title,
-        },
-        source: 'fallback',
-      }));
+      try {
+        const fallbackResult = await pool.query(fallbackQuery, [limit]);
+        activities = fallbackResult.rows.map((row) => ({
+          id: `${row.action_type}_${row.entity_id}_${Date.parse(row.timestamp)}`,
+          action_type: row.action_type,
+          entity_type: row.entity_type,
+          entity_id: row.entity_id,
+          entity_name: row.entity_name,
+          description: row.description,
+          user_email: row.user_email,
+          timestamp: row.timestamp,
+          time_ago: getTimeAgo(new Date(row.timestamp)),
+          page: {
+            name: row.page_name,
+            title: row.page_title,
+          },
+          source: 'fallback',
+        }));
+      } catch (fallbackError) {
+        console.error('Fallback query also failed:', fallbackError);
+        // Return empty activities if both methods fail
+        activities = [];
+      }
     }
 
     res.json({
@@ -349,8 +292,9 @@ const getActivitesByPage = async (req, res) => {
     const { pageName } = req.params;
     const limit = parseInt(req.query.limit) || 10;
 
+    // Simplified query without complex JOINs
     const query = `
-      SELECT 
+      SELECT
         al.id,
         al.action_type,
         al.entity_type,
@@ -359,36 +303,33 @@ const getActivitesByPage = async (req, res) => {
         al.description,
         al.created_at as timestamp,
         u.email as user_email,
-        al.ip_address,
-        p.name as page_name,
-        p.title as page_title
+        al.ip_address
       FROM activity_log al
       LEFT JOIN users u ON al.user_id = u.id
-      LEFT JOIN pages p ON (
-        CASE 
-          WHEN al.entity_type = 'page' OR al.entity_type = 'page_content' THEN 
-            CASE 
-              WHEN al.entity_name ~ '^(home|about|services|awards|musicalevents|politicalevents|partners|contact)' THEN 
-                p.name = SPLIT_PART(al.entity_name, ' ', 1)
-              ELSE p.name = al.entity_name
-            END
-          WHEN al.entity_type = 'award' THEN p.name = 'awards'
-          WHEN al.entity_type = 'team_member' OR al.entity_type = 'about_section' THEN p.name = 'about'
-          WHEN al.entity_type = 'partner' THEN p.name = 'home'
-          WHEN al.entity_type = 'key_offering' OR al.entity_type = 'case_study' THEN p.name = 'services'
-          WHEN al.entity_type = 'why_watch' THEN p.name = 'musicalevents'
-          WHEN al.entity_type = 'standout' THEN p.name = 'politicalevents'
-          WHEN al.entity_type = 'valued_partner' THEN p.name = 'partners'
-          ELSE false
-        END
+      WHERE (
+        -- Direct page matches
+        (al.entity_type = 'page' AND al.entity_name = $1)
+        OR
+        -- Entity type to page mapping
+        (al.entity_type = 'award' AND $1 = 'awards')
+        OR
+        (al.entity_type IN ('team_member', 'about_section') AND $1 = 'about')
+        OR
+        (al.entity_type = 'partner' AND $1 = 'home')
+        OR
+        (al.entity_type IN ('key_offering', 'case_study') AND $1 = 'services')
+        OR
+        (al.entity_type = 'why_watch' AND $1 = 'musicalevents')
+        OR
+        (al.entity_type = 'standout' AND $1 = 'politicalevents')
+        OR
+        (al.entity_type = 'valued_partner' AND $1 = 'partners')
       )
-      WHERE p.name = $1
       ORDER BY al.created_at DESC
       LIMIT $2
     `;
 
     const result = await pool.query(query, [pageName, limit]);
-
     const activities = result.rows.map((row) => ({
       id: `activity_${row.id}`,
       action_type: row.action_type,
@@ -400,8 +341,8 @@ const getActivitesByPage = async (req, res) => {
       timestamp: row.timestamp,
       time_ago: getTimeAgo(new Date(row.timestamp)),
       page: {
-        name: row.page_name,
-        title: row.page_title || getPageDisplayName(row.page_name),
+        name: pageName,
+        title: getPageDisplayName(pageName),
       },
     }));
 
@@ -428,7 +369,7 @@ const getByActionType = async (req, res) => {
     const limit = parseInt(req.query.limit) || 10;
 
     const query = `
-      SELECT 
+      SELECT
         al.id,
         al.action_type,
         al.entity_type,
@@ -446,7 +387,6 @@ const getByActionType = async (req, res) => {
     `;
 
     const result = await pool.query(query, [actionType.toUpperCase(), limit]);
-
     const activities = result.rows.map((row) => ({
       id: `activity_${row.id}`,
       action_type: row.action_type,
@@ -478,23 +418,23 @@ const getByActionType = async (req, res) => {
 const getDetailedStats = async (req, res) => {
   try {
     const statsQuery = `
-      SELECT 
+      SELECT
         action_type,
         entity_type,
         COUNT(*) as count,
         MAX(created_at) as last_activity
-      FROM activity_log 
+      FROM activity_log
       WHERE created_at >= NOW() - INTERVAL '7 days'
       GROUP BY action_type, entity_type
       ORDER BY count DESC, last_activity DESC
     `;
 
     const totalQuery = `
-      SELECT 
+      SELECT
         COUNT(*) as total_activities,
         COUNT(DISTINCT user_id) as unique_users,
         COUNT(DISTINCT entity_type) as entity_types_affected
-      FROM activity_log 
+      FROM activity_log
       WHERE created_at >= NOW() - INTERVAL '7 days'
     `;
 
@@ -537,7 +477,7 @@ const manualLogActivity = async (req, res) => {
 
     const query = `
       INSERT INTO activity_log (
-        user_id, action_type, entity_type, entity_id, entity_name, 
+        user_id, action_type, entity_type, entity_id, entity_name,
         description, old_data, new_data, ip_address, user_agent
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
       RETURNING *
@@ -579,6 +519,25 @@ const manualLogActivity = async (req, res) => {
   }
 };
 
+// Helper function to map entity types to page names
+function getPageNameFromEntityType(entityType) {
+  const entityToPageMap = {
+    award: 'awards',
+    team_member: 'about',
+    about_section: 'about',
+    partner: 'home',
+    key_offering: 'services',
+    case_study: 'services',
+    why_watch: 'musicalevents',
+    standout: 'politicalevents',
+    valued_partner: 'partners',
+    page: 'page',
+    auth: 'auth',
+  };
+
+  return entityToPageMap[entityType] || 'unknown';
+}
+
 function getPageDisplayName(pageName) {
   const pageDisplayNames = {
     home: 'Home',
@@ -590,6 +549,7 @@ function getPageDisplayName(pageName) {
     partners: 'Partners',
     contact: 'Contact',
     auth: 'Authentication',
+    unknown: 'Unknown',
   };
 
   return pageDisplayNames[pageName] || pageName.charAt(0).toUpperCase() + pageName.slice(1);
