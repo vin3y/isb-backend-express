@@ -99,10 +99,13 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Something broke!' });
 });
 
-app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
-  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`Region: ${process.env.AWS_REGION}`);
+app.listen(PORT, '0.0.0.0', (err) => {
+  if (err) {
+    console.error('Server failed to start:', err);
+    process.exit(1);
+  }
+  console.log(`Server running on port ${PORT}`);
+  console.log('Environment:', process.env.NODE_ENV);
 });
 
 module.exports = app;
