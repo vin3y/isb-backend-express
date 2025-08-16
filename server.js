@@ -1,46 +1,23 @@
-// Make sure your server.js has these configurations
-
 const express = require('express');
-const dotenv = require('dotenv');
 const cors = require('cors');
 
-// Load environment variables
-dotenv.config();
+// Only use dotenv in development
+if (process.env.NODE_ENV !== 'production') {
+  require('dotenv').config();
+}
 
 const app = express();
-
-// Use port 8080 for Elastic Beanstalk
 const PORT = process.env.PORT || 8080;
 
-// Database configuration - make sure your db config reads these variables
-const dbConfig = {
-  host: process.env.DB_HOST,
-  user: process.env.DB_USER,
-  database: process.env.DB_DATABASE, // Note: you use DB_DATABASE, not DB_NAME
-  port: process.env.DB_PORT,
-  password: process.env.DB_PASSWORD,
-};
+console.log('=== STARTUP DEBUG ===');
+console.log('NODE_ENV:', process.env.NODE_ENV);
+console.log('PORT:', PORT);
+console.log('DB_HOST:', process.env.DB_HOST ? 'SET' : 'MISSING');
+console.log('AWS_BUCKETNAME:', process.env.AWS_BUCKETNAME ? 'SET' : 'MISSING');
+console.log('AWS_REGION:', process.env.AWS_REGION ? 'SET' : 'MISSING');
+console.log('====================');
 
-// JWT configuration
-const jwtConfig = {
-  secret: process.env.JWT_SECRET_KEY, // Note: you use JWT_SECRET_KEY, not JWT_SECRET
-  refreshSecret: process.env.REFRESH_SECRET_KEY,
-};
-
-// AWS S3 configuration
-const s3Config = {
-  accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-  secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
-  region: process.env.AWS_REGION,
-  bucketName: process.env.AWS_BUCKETNAME,
-};
-
-console.log('Environment:', process.env.NODE_ENV);
-console.log('Port:', PORT);
-console.log('Database Host:', process.env.DB_HOST);
-console.log('AWS Region:', process.env.AWS_REGION);
-
-// CORS configuration for eu-north-1
+// CORS configuration
 const corsOptions = {
   origin: function (origin, callback) {
     if (!origin) return callback(null, true);
@@ -48,12 +25,8 @@ const corsOptions = {
     const allowedOrigins =
       process.env.NODE_ENV === 'production'
         ? [
-            // Add your production frontend domains here
-            'https://your-frontend-domain.com',
-            // Your EB environment URL (you'll get this after deployment)
-            'http://isb-admin-prod.eu-north-1.elasticbeanstalk.com',
-            'https://isb-admin-prod.eu-north-1.elasticbeanstalk.com',
-            // Temporarily allow localhost for testing
+            'http://isb-admin-prod.eba-5darypkj.eu-north-1.elasticbeanstalk.com',
+            'https://isb-admin-prod.eba-5darypkj.eu-north-1.elasticbeanstalk.com',
             'http://localhost:5173',
             'http://127.0.0.1:5173',
           ]
@@ -74,38 +47,68 @@ app.use(cors(corsOptions));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
-// Health check endpoint for Elastic Beanstalk
+// Health check endpoint
 app.get('/health', (req, res) => {
   res.status(200).json({
     status: 'healthy',
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV,
     region: process.env.AWS_REGION,
-    database: process.env.DB_HOST ? 'connected' : 'not configured',
+    database: process.env.DB_HOST ? 'configured' : 'missing',
+    s3bucket: process.env.AWS_BUCKETNAME ? 'configured' : 'missing',
   });
 });
 
-// Your routes
-app.use('/api', require('./src/routes'));
+// Basic test endpoint
+app.get('/', (req, res) => {
+  res.json({
+    message: 'ISB Admin Backend is running!',
+    environment: process.env.NODE_ENV || 'development',
+    timestamp: new Date().toISOString(),
+  });
+});
 
-// 404 handler
+// Conditional route loading
+if (process.env.AWS_BUCKETNAME && process.env.DB_HOST) {
+  console.log('✅ Environment variables found - loading API routes');
+  try {
+    app.use('/api', require('./src/routes'));
+    console.log('✅ API routes loaded successfully');
+  } catch (error) {
+    console.error('❌ Failed to load API routes:', error.message);
+  }
+} else {
+  console.log('⚠️ Missing environment variables - API routes disabled');
+  app.get('/api/*', (req, res) => {
+    res.status(503).json({
+      error: 'API temporarily unavailable',
+      reason: 'Environment configuration pending',
+    });
+  });
+}
+
+// Error handlers
 app.use((req, res) => {
   res.status(404).json({ error: 'Route not found' });
 });
 
-// Error handler
 app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).json({ error: 'Something broke!' });
+  console.error('Application error:', err.stack);
+  res.status(500).json({ error: 'Internal server error' });
 });
 
-app.listen(PORT, '0.0.0.0', (err) => {
+// Start server
+const server = app.listen(PORT, '0.0.0.0', (err) => {
   if (err) {
-    console.error('Server failed to start:', err);
+    console.error('❌ Server failed to start:', err);
     process.exit(1);
   }
-  console.log(`Server running on port ${PORT}`);
-  console.log('Environment:', process.env.NODE_ENV);
+  console.log(`✅ Server successfully started on port ${PORT}`);
+  console.log(`✅ Environment: ${process.env.NODE_ENV || 'development'}`);
+});
+
+server.on('error', (err) => {
+  console.error('❌ Server error:', err);
 });
 
 module.exports = app;

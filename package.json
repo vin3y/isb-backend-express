@@ -4,8 +4,8 @@
   "description": "ISB Admin Panel Backend API",
   "main": "server.js",
   "engines": {
-    "node": ">=18.0.0",
-    "npm": ">=8.0.0"
+    "node": "22.x",
+    "npm": "10.x"
   },
   "scripts": {
     "start": "node server.js",
@@ -21,18 +21,13 @@
     "multer-s3": "^3.0.1",
     "pg": "^8.11.3",
     "bcrypt": "^5.1.1",
-    "jsonwebtoken": "^9.0.2"
+    "jsonwebtoken": "^9.0.2",
+    "fluent-ffmpeg": "^2.1.2"
   },
   "devDependencies": {
     "nodemon": "^3.0.1"
   },
-  "keywords": [
-    "nodejs",
-    "express",
-    "aws",
-    "s3",
-    "admin"
-  ],
-  "author": "Your Name",
+  "keywords": ["nodejs", "express", "aws", "s3", "admin"],
+  "author": "ISB Films",
   "license": "ISC"
 }
