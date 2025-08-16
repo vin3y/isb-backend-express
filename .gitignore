@@ -1,57 +1,12 @@
-# Node.js
 node_modules/
+.env
+.env.local
+.env.production
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-pnpm-debug.log*
-
-# Logs
-logs/
-*.log
-*.log.*
-log/
-
-# Runtime data
-pids/
-*.pid
-*.seed
-*.pid.lock
-
-# dotenv environment variables
-.env
-.env.test
-.env.local
-.env.*.local
-
-# OS-specific
 .DS_Store
-Thumbs.db
-
-# Editor-specific
 .vscode/
-.idea/
-*.swp
-
-# Dependency directories
-.bower_components/
-jspm_packages/
-
-# Build
-dist/
-build/
-tmp/
-temp/
-
-# Coverage
-coverage/
-*.lcov
-
-# Misc
-.cache/
-.parcel-cache/
-.next/
-out/
-
-# PM2 logs
-.pids
-*.pm2.log
+.elasticbeanstalk/*
+!.elasticbeanstalk/*.cfg.yml
+!.elasticbeanstalk/*.global.yml
