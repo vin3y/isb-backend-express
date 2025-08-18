@@ -510,11 +510,19 @@ const uploadBackgroundVideo = async (req, res) => {
     }
 
     // Generate thumbnail for the new video
-    let thumbnailUrl;
+    let thumbnailUrl = null;
     try {
+      console.log('🎬 Attempting to generate thumbnail...');
       thumbnailUrl = await generateThumbnail(req.file, pageName);
+      if (thumbnailUrl) {
+        console.log('✅ Thumbnail generated successfully:', thumbnailUrl);
+      } else {
+        console.log('⚠️ Thumbnail generation returned null');
+      }
     } catch (thumbnailError) {
-      console.error('Thumbnail generation error:', thumbnailError);
+      console.error('❌ Thumbnail generation error:', thumbnailError);
+      // Continue without thumbnail - don't fail the upload
+      console.log('📹 Continuing upload without thumbnail');
     }
 
     // Update with new video and thumbnail URLs

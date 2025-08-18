@@ -14,4 +14,9 @@ router.get('/pages-background', publicPagesController.getAllPagesBackground);
 // Get only background and title data for specific page
 router.get('/pages/:pageName/background', publicPagesController.getPageBackground);
 
+router.post('/contact', publicPagesController.submitContactMessage);
+
+// Get contact information (public endpoint)
+// GET /api/public/contact
+router.get('/contact', publicPagesController.getPublicContactInfo);
 module.exports = router;

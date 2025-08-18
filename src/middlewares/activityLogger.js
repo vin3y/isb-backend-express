@@ -120,7 +120,10 @@ function createActivityLogger(entityType) {
         entityType,
         entityId,
         entityName,
-        `Changed ${entityType.replace('_', ' ')} "${entityName}" status from ${oldStatus} to ${newStatus}`,
+        `Changed ${entityType.replace(
+          '_',
+          ' '
+        )} "${entityName}" status from ${oldStatus} to ${newStatus}`,
         { status: oldStatus, ...additionalData },
         { status: newStatus, ...additionalData },
         req.ip,
@@ -146,7 +149,10 @@ function createActivityLogger(entityType) {
         entityType,
         entityId,
         entityName,
-        `Uploaded ${fileType.replace('_', ' ')} for ${entityType.replace('_', ' ')} "${entityName}"`,
+        `Uploaded ${fileType.replace('_', ' ')} for ${entityType.replace(
+          '_',
+          ' '
+        )} "${entityName}"`,
         null,
         {
           fileType,
@@ -312,6 +318,162 @@ const pageContentLogger = {
   },
 };
 
+// Contact activity logger
+const contact = {
+  // Log contact info creation
+  logCreate: async (req, contactId, itemName, newData) => {
+    if (!req.user) return;
+
+    return await logActivity(
+      req.user.id,
+      'CREATE',
+      'contact_info',
+      contactId,
+      itemName,
+      `Added contact information for "${itemName}"`,
+      null,
+      newData,
+      req.ip,
+      req.get('User-Agent')
+    );
+  },
+
+  // Log contact info updates
+  logUpdate: async (req, contactId, itemName, oldData, newData) => {
+    if (!req.user) return;
+
+    // Get changed fields
+    const changes = getContactChangedFields(oldData, newData);
+    const changedFieldNames = Object.keys(changes);
+    const fieldsText = changedFieldNames.length > 0 ? changedFieldNames.join(', ') : 'no changes';
+
+    return await logActivity(
+      req.user.id,
+      'UPDATE',
+      'contact_info',
+      contactId,
+      itemName,
+      `Updated contact information (${fieldsText})`,
+      oldData,
+      newData,
+      req.ip,
+      req.get('User-Agent')
+    );
+  },
+
+  // Log message status updates
+  logStatusUpdate: async (req, messageId, messageName, oldStatus, newStatus) => {
+    if (!req.user) return;
+
+    return await logActivity(
+      req.user.id,
+      'STATUS_UPDATE',
+      'contact_message',
+      messageId,
+      messageName,
+      `Changed message status from ${oldStatus} to ${newStatus}`,
+      { status: oldStatus },
+      { status: newStatus, timestamp: new Date().toISOString() },
+      req.ip,
+      req.get('User-Agent')
+    );
+  },
+
+  // Log message deletion
+  logDelete: async (req, messageId, messageName, messageData) => {
+    if (!req.user) return;
+
+    return await logActivity(
+      req.user.id,
+      'DELETE',
+      'contact_message',
+      messageId,
+      messageName,
+      `Deleted message from ${messageData.name}`,
+      messageData,
+      null,
+      req.ip,
+      req.get('User-Agent')
+    );
+  },
+
+  // Log bulk message status updates
+  logBulkUpdate: async (req, messageIds, status, updatedMessages) => {
+    if (!req.user) return;
+
+    return await logActivity(
+      req.user.id,
+      'BULK_UPDATE',
+      'contact_message',
+      null,
+      `Bulk Status Update (${messageIds.length} messages)`,
+      `Updated ${updatedMessages.length} messages to ${status} status`,
+      { message_ids: messageIds, old_status: 'mixed' },
+      {
+        new_status: status,
+        updated_count: updatedMessages.length,
+        updated_messages: updatedMessages.map((m) => ({ id: m.id, name: m.name })),
+      },
+      req.ip,
+      req.get('User-Agent')
+    );
+  },
+
+  // Log public message submissions (no user required)
+  logMessageSubmission: async (messageData, ipAddress, userAgent) => {
+    try {
+      return await logActivity(
+        null, // No user for public submissions
+        'SUBMIT',
+        'contact_message',
+        messageData.id,
+        `Message from ${messageData.name}`,
+        `New contact message submitted by ${messageData.name} (${messageData.email})`,
+        null,
+        {
+          sender_name: messageData.name,
+          sender_email: messageData.email,
+          subject: messageData.subject,
+          submission_time: messageData.created_at,
+          message_length: messageData.message?.length || 0,
+        },
+        ipAddress,
+        userAgent
+      );
+    } catch (error) {
+      console.error('Error logging message submission:', error);
+      return null;
+    }
+  },
+};
+
+// Helper function to get changed fields between old and new contact data
+function getContactChangedFields(oldData, newData) {
+  const changes = {};
+  const fields = [
+    'email',
+    'phone',
+    'office_location',
+    'company_name',
+    'address_line_1',
+    'address_line_2',
+    'city',
+    'postal_code',
+    'country',
+  ];
+
+  fields.forEach((field) => {
+    if (oldData[field] !== newData[field]) {
+      changes[field] = {
+        from: oldData[field] || null,
+        to: newData[field] || null,
+      };
+    }
+  });
+
+  return changes;
+}
+
 // Pre-defined loggers for your entities
 const activityLoggers = {
   page: createActivityLogger('page'),
@@ -324,6 +486,9 @@ const activityLoggers = {
   standout: createActivityLogger('standout'),
   valuedPartner: createActivityLogger('valued_partner'),
   aboutSection: createActivityLogger('about_section'),
+
+  // Contact logger
+  contact: contact,
 
   // Enhanced page content logger
   pageContent: pageContentLogger,
@@ -397,6 +562,8 @@ function getPageNameFromEntityType(entityType) {
     standout: 'politicalevents',
     valued_partner: 'partners',
     about_section: 'about',
+    contact_info: 'contact',
+    contact_message: 'contact',
     page: null, // Will use actual page name
     auth: 'auth',
   };
@@ -417,6 +584,9 @@ function formatActionType(actionType) {
     DELETE: 'Removed',
     PUBLISH: 'Published',
     STATUS_CHANGE: 'Status Changed',
+    STATUS_UPDATE: 'Status Updated',
+    BULK_UPDATE: 'Bulk Updated',
+    SUBMIT: 'Submitted',
     FILE_UPLOAD: 'File Uploaded',
     CONTENT_UPDATE: 'Content Updated',
     TITLE_UPDATE: 'Title Updated',

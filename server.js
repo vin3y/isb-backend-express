@@ -87,6 +87,29 @@ if (process.env.AWS_BUCKETNAME && process.env.DB_HOST) {
   });
 }
 
+app.get('/test-ffmpeg', (req, res) => {
+  const { execSync } = require('child_process');
+
+  try {
+    // Check if FFmpeg is installed
+    const version = execSync('ffmpeg -version', { encoding: 'utf8' });
+    const whichFFmpeg = execSync('which ffmpeg', { encoding: 'utf8' });
+
+    res.json({
+      success: true,
+      ffmpeg_version: version.split('\n')[0],
+      ffmpeg_path: whichFFmpeg.trim(),
+      message: 'FFmpeg is working correctly',
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      message: 'FFmpeg is not available',
+    });
+  }
+});
+
 // Error handlers
 app.use((req, res) => {
   res.status(404).json({ error: 'Route not found' });

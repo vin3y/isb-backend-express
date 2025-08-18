@@ -8,6 +8,7 @@ const servicesRoutes = require('./servicesRoutes');
 const musicalEventsRoutes = require('./musicalEventsRoutes');
 const politicalEventsRoutes = require('./politicalEventsRoutes');
 const partnersRoutes = require('./partnerPageRoutes');
+const contactRoutes = require('./contactRoutes');
 const actionRoutes = require('./actionRoutes');
 // const {authenticateToken} = require("../middlewares/auth");
 
@@ -22,6 +23,7 @@ router.use('/services', servicesRoutes);
 router.use('/musicalevents', musicalEventsRoutes);
 router.use('/politicalevents', politicalEventsRoutes);
 router.use('/partners', partnersRoutes);
+router.use('/contact', contactRoutes);
 router.use('/actions', actionRoutes);
 
 // API root endpoint
