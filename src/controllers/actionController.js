@@ -1,6 +1,6 @@
 const express = require('express');
-const { pool } = require('../config/db');
 const { authenticateToken } = require('../middlewares/auth');
+const db = require('../config/db');
 
 const getAllActivitiesWithFilters = async (req, res) => {
   try {
@@ -100,9 +100,9 @@ const getAllActivitiesWithFilters = async (req, res) => {
     `;
 
     const [activitiesResult, countResult, filtersResult] = await Promise.all([
-      pool.query(query, queryParams),
-      pool.query(countQuery, queryParams.slice(0, -2)), // Remove limit and offset for count
-      pool.query(filtersQuery),
+      db.query(query, queryParams),
+      db.query(countQuery, queryParams.slice(0, -2)), // Remove limit and offset for count
+      db.query(filtersQuery),
     ]);
 
     const activities = activitiesResult.rows.map((row) => ({
@@ -223,7 +223,7 @@ const exportActivities = async (req, res) => {
       ORDER BY al.created_at DESC
     `;
 
-    const result = await pool.query(query, queryParams);
+    const result = await db.query(query, queryParams);
 
     // Create CSV content
     const csvHeader =
@@ -287,7 +287,7 @@ const getRecentActivities = async (req, res) => {
       `;
 
       console.log('Executing activity log query...');
-      const result = await pool.query(activityLogQuery);
+      const result = await db.query(activityLogQuery);
       console.log(`Found ${result.rows.length} activity log entries`);
 
       if (result.rows.length > 0) {
@@ -356,7 +356,7 @@ const getRecentActivities = async (req, res) => {
         LIMIT 4
       `;
 
-      const fallbackResult = await pool.query(fallbackQuery);
+      const fallbackResult = await db.query(fallbackQuery);
       activities = fallbackResult.rows.map((row) => ({
         id: `${row.action_type}_${row.entity_id}_${Date.parse(row.timestamp)}`,
         action_type: row.action_type,
@@ -410,7 +410,7 @@ const getPaginatedAcitivites = async (req, res) => {
         );
       `;
 
-      const tableResult = await pool.query(tableExistsQuery);
+      const tableResult = await db.query(tableExistsQuery);
       const tableExists = tableResult.rows[0].exists;
 
       console.log(`Activity log table exists: ${tableExists}`);
@@ -433,7 +433,7 @@ const getPaginatedAcitivites = async (req, res) => {
           LIMIT $1
         `;
 
-        const result = await pool.query(activityLogQuery, [limit]);
+        const result = await db.query(activityLogQuery, [limit]);
         console.log(`Retrieved ${result.rows.length} activities from activity_log`);
 
         if (result.rows.length > 0) {
@@ -504,7 +504,7 @@ const getPaginatedAcitivites = async (req, res) => {
       `;
 
       try {
-        const fallbackResult = await pool.query(fallbackQuery, [limit]);
+        const fallbackResult = await db.query(fallbackQuery, [limit]);
         activities = fallbackResult.rows.map((row) => ({
           id: `${row.action_type}_${row.entity_id}_${Date.parse(row.timestamp)}`,
           action_type: row.action_type,
@@ -589,7 +589,7 @@ const getActivitesByPage = async (req, res) => {
       LIMIT $2
     `;
 
-    const result = await pool.query(query, [pageName, limit]);
+    const result = await db.query(query, [pageName, limit]);
     const activities = result.rows.map((row) => ({
       id: `activity_${row.id}`,
       action_type: row.action_type,
@@ -646,7 +646,7 @@ const getByActionType = async (req, res) => {
       LIMIT $2
     `;
 
-    const result = await pool.query(query, [actionType.toUpperCase(), limit]);
+    const result = await db.query(query, [actionType.toUpperCase(), limit]);
     const activities = result.rows.map((row) => ({
       id: `activity_${row.id}`,
       action_type: row.action_type,
@@ -699,8 +699,8 @@ const getDetailedStats = async (req, res) => {
     `;
 
     const [statsResult, totalResult] = await Promise.all([
-      pool.query(statsQuery),
-      pool.query(totalQuery),
+      db.query(statsQuery),
+      db.query(totalQuery),
     ]);
 
     res.json({
@@ -756,7 +756,7 @@ const manualLogActivity = async (req, res) => {
       req.get('User-Agent'),
     ];
 
-    const result = await pool.query(query, values);
+    const result = await db.query(query, values);
 
     res.json({
       success: true,

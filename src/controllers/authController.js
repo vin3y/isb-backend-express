@@ -334,10 +334,7 @@ const resetPassword = async (req, res) => {
     );
 
     // Revoke all existing refresh tokens for this user
-    await db.query('UPDATE refresh_tokens SET revoked = true, updated_at = $1 WHERE user_id = $2', [
-      currentUTC,
-      userId,
-    ]);
+    await pool.query(`UPDATE refresh_tokens SET token = $1 WHERE user_id = $2`, [newToken, userId]);
 
     // Log the password reset activity
     await activityLoggers.auth.logPasswordReset(req, req.user.email);

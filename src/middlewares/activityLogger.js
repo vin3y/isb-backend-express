@@ -1,5 +1,5 @@
 // src/middlewares/activityLogger.js
-const { pool } = require('../config/db'); // Adjust the path as necessary
+const db = require('../config/db'); // Adjust the path as necessary
 require('dotenv').config();
 
 // Activity logging utility function
@@ -37,7 +37,7 @@ async function logActivity(
       userAgent,
     ];
 
-    const result = await pool.query(query, values);
+    const result = await db.query(query, values);
     return result.rows[0];
   } catch (error) {
     console.error('Error logging activity:', error);
