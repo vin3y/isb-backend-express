@@ -2,6 +2,266 @@ const express = require('express');
 const { pool } = require('../config/db');
 const { authenticateToken } = require('../middlewares/auth');
 
+const getAllActivitiesWithFilters = async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const offset = (page - 1) * limit;
+
+    // Extract filter parameters
+    const search = req.query.search || '';
+    const actionType = req.query.action_type || '';
+    const entityType = req.query.entity_type || '';
+    const date = req.query.date || '';
+    const user = req.query.user || '';
+
+    // Build WHERE clause dynamically
+    let whereConditions = [];
+    let queryParams = [];
+    let paramIndex = 1;
+
+    if (search) {
+      whereConditions.push(`(
+        al.entity_name ILIKE $${paramIndex} OR 
+        al.description ILIKE $${paramIndex} OR 
+        u.email ILIKE $${paramIndex}
+      )`);
+      queryParams.push(`%${search}%`);
+      paramIndex++;
+    }
+
+    if (actionType) {
+      whereConditions.push(`al.action_type = $${paramIndex}`);
+      queryParams.push(actionType.toUpperCase());
+      paramIndex++;
+    }
+
+    if (entityType) {
+      whereConditions.push(`al.entity_type = $${paramIndex}`);
+      queryParams.push(entityType.toLowerCase());
+      paramIndex++;
+    }
+
+    if (date) {
+      whereConditions.push(`DATE(al.created_at) = $${paramIndex}`);
+      queryParams.push(date);
+      paramIndex++;
+    }
+
+    if (user) {
+      whereConditions.push(`u.email ILIKE $${paramIndex}`);
+      queryParams.push(`%${user}%`);
+      paramIndex++;
+    }
+
+    const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
+
+    // Main query with pagination
+    const query = `
+      SELECT
+        al.id,
+        al.user_id,
+        al.action_type,
+        al.entity_type,
+        al.entity_id,
+        al.entity_name,
+        al.description,
+        al.old_data,
+        al.new_data,
+        al.ip_address,
+        al.user_agent,
+        al.created_at,
+        u.email as user_email
+      FROM activity_log al
+      LEFT JOIN users u ON al.user_id = u.id
+      ${whereClause}
+      ORDER BY al.created_at DESC
+      LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
+    `;
+
+    queryParams.push(limit, offset);
+
+    // Count query for pagination
+    const countQuery = `
+      SELECT COUNT(*) as total
+      FROM activity_log al
+      LEFT JOIN users u ON al.user_id = u.id
+      ${whereClause}
+    `;
+
+    // Filters query to get unique values
+    const filtersQuery = `
+      SELECT 
+        ARRAY_AGG(DISTINCT al.action_type) as action_types,
+        ARRAY_AGG(DISTINCT al.entity_type) as entity_types,
+        ARRAY_AGG(DISTINCT u.email) FILTER (WHERE u.email IS NOT NULL) as users
+      FROM activity_log al
+      LEFT JOIN users u ON al.user_id = u.id
+    `;
+
+    const [activitiesResult, countResult, filtersResult] = await Promise.all([
+      pool.query(query, queryParams),
+      pool.query(countQuery, queryParams.slice(0, -2)), // Remove limit and offset for count
+      pool.query(filtersQuery),
+    ]);
+
+    const activities = activitiesResult.rows.map((row) => ({
+      id: row.id.toString(),
+      user_id: row.user_id,
+      action_type: row.action_type,
+      entity_type: row.entity_type,
+      entity_id: row.entity_id,
+      entity_name: row.entity_name,
+      description: row.description,
+      old_data: row.old_data,
+      new_data: row.new_data,
+      ip_address: row.ip_address,
+      user_agent: row.user_agent,
+      created_at: row.created_at,
+      time_ago: getTimeAgo(new Date(row.created_at)),
+      user_email: row.user_email,
+    }));
+
+    const totalItems = parseInt(countResult.rows[0].total);
+    const totalPages = Math.ceil(totalItems / limit);
+
+    const filters = filtersResult.rows[0] || {};
+
+    res.json({
+      success: true,
+      data: {
+        activities,
+        pagination: {
+          currentPage: page,
+          totalPages,
+          totalItems,
+          itemsPerPage: limit,
+          hasNextPage: page < totalPages,
+          hasPrevPage: page > 1,
+        },
+        filters: {
+          actionTypes: filters.action_types || [],
+          entityTypes: filters.entity_types || [],
+          users: filters.users || [],
+        },
+      },
+    });
+  } catch (error) {
+    console.error('Error fetching filtered activities:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch activities',
+      error: error.message,
+    });
+  }
+};
+
+const exportActivities = async (req, res) => {
+  try {
+    // Extract filter parameters (same as getAllActivitiesWithFilters)
+    const search = req.query.search || '';
+    const actionType = req.query.action_type || '';
+    const entityType = req.query.entity_type || '';
+    const date = req.query.date || '';
+    const user = req.query.user || '';
+
+    // Build WHERE clause dynamically
+    let whereConditions = [];
+    let queryParams = [];
+    let paramIndex = 1;
+
+    if (search) {
+      whereConditions.push(`(
+        al.entity_name ILIKE $${paramIndex} OR 
+        al.description ILIKE $${paramIndex} OR 
+        u.email ILIKE $${paramIndex}
+      )`);
+      queryParams.push(`%${search}%`);
+      paramIndex++;
+    }
+
+    if (actionType) {
+      whereConditions.push(`al.action_type = $${paramIndex}`);
+      queryParams.push(actionType.toUpperCase());
+      paramIndex++;
+    }
+
+    if (entityType) {
+      whereConditions.push(`al.entity_type = $${paramIndex}`);
+      queryParams.push(entityType.toLowerCase());
+      paramIndex++;
+    }
+
+    if (date) {
+      whereConditions.push(`DATE(al.created_at) = $${paramIndex}`);
+      queryParams.push(date);
+      paramIndex++;
+    }
+
+    if (user) {
+      whereConditions.push(`u.email ILIKE $${paramIndex}`);
+      queryParams.push(`%${user}%`);
+      paramIndex++;
+    }
+
+    const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
+
+    const query = `
+      SELECT
+        al.id,
+        al.action_type,
+        al.entity_type,
+        al.entity_id,
+        al.entity_name,
+        al.description,
+        al.created_at,
+        al.ip_address,
+        u.email as user_email
+      FROM activity_log al
+      LEFT JOIN users u ON al.user_id = u.id
+      ${whereClause}
+      ORDER BY al.created_at DESC
+    `;
+
+    const result = await pool.query(query, queryParams);
+
+    // Create CSV content
+    const csvHeader =
+      'ID,Action Type,Entity Type,Entity ID,Entity Name,Description,User Email,IP Address,Created At\n';
+    const csvContent = result.rows
+      .map((row) => {
+        return [
+          row.id,
+          row.action_type,
+          row.entity_type,
+          row.entity_id,
+          `"${row.entity_name || ''}"`,
+          `"${row.description || ''}"`,
+          row.user_email || '',
+          row.ip_address || '',
+          row.created_at,
+        ].join(',');
+      })
+      .join('\n');
+
+    const csv = csvHeader + csvContent;
+
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="activity_log_${new Date().toISOString().split('T')[0]}.csv"`
+    );
+    res.send(csv);
+  } catch (error) {
+    console.error('Error exporting activities:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to export activities',
+      error: error.message,
+    });
+  }
+};
+
 const getRecentActivities = async (req, res) => {
   try {
     let activities = [];
@@ -575,4 +835,6 @@ module.exports = {
   getByActionType,
   getDetailedStats,
   manualLogActivity,
+  getAllActivitiesWithFilters,
+  exportActivities,
 };
