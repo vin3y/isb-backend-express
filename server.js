@@ -29,6 +29,8 @@ const corsOptions = {
         ? [
             'http://isb-admin-prod.eba-5darypkj.eu-north-1.elasticbeanstalk.com',
             'https://isb-admin-prod.eba-5darypkj.eu-north-1.elasticbeanstalk.com',
+            'http://isb-admin-client.eba-zfrf236m.eu-north-1.elasticbeanstalk.com',
+            'https://isb-admin-client.eba-zfrf236m.eu-north-1.elasticbeanstalk.com',
             'http://localhost:5173',
             'http://127.0.0.1:5173',
           ]
