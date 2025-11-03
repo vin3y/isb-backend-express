@@ -19,4 +19,6 @@ router.post('/contact', publicPagesController.submitContactMessage);
 // Get contact information (public endpoint)
 // GET /api/public/contact
 router.get('/contact', publicPagesController.getPublicContactInfo);
+
+
 module.exports = router;
