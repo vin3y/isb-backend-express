@@ -10,6 +10,7 @@ const politicalEventsRoutes = require('./politicalEventsRoutes');
 const partnersRoutes = require('./partnerPageRoutes');
 const contactRoutes = require('./contactRoutes');
 const actionRoutes = require('./actionRoutes');
+const isbFilmsRoutes = require('./isbFilmRoutes');
 // const {authenticateToken} = require("../middlewares/auth");
 
 const router = express.Router();
@@ -25,6 +26,13 @@ router.use('/politicalevents', politicalEventsRoutes);
 router.use('/partners', partnersRoutes);
 router.use('/contact', contactRoutes);
 router.use('/actions', actionRoutes);
+
+
+//isbfilms
+router.use('/isbfilms', isbFilmsRoutes);
+
+
+
 
 // API root endpoint
 router.get('/', (req, res) => {

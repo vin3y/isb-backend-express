@@ -301,6 +301,57 @@ const testS3Connection = async () => {
   }
 };
 
+
+//isb films functions
+
+const uploadISBFilmsCrewPhoto = multer({
+  storage: multerS3({
+    s3: s3,
+    bucket: bucketName,
+    contentType: multerS3.AUTO_CONTENT_TYPE,
+    key: (req, file, cb) => {
+      const timestamp = Date.now();
+      const fileName = `isbfilms/crew/${timestamp}-${file.originalname}`;
+      cb(null, fileName);
+    },
+  }),
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only image files are allowed'), false);
+    }
+  },
+  limits: {
+    fileSize: 5 * 1024 * 1024, // 5MB
+  },
+});
+
+// ISB Films - Background Video Upload
+const uploadISBFilmsBackgroundVideo = multer({
+  storage: multerS3({
+    s3: s3,
+    bucket: bucketName,
+    contentType: multerS3.AUTO_CONTENT_TYPE,
+    key: (req, file, cb) => {
+      const pageName = req.params.pageName || 'home';
+      const timestamp = Date.now();
+      const fileName = `isbfilms/${pageName}/background/${timestamp}-${file.originalname}`;
+      cb(null, fileName);
+    },
+  }),
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith('video/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only video files are allowed'), false);
+    }
+  },
+  limits: {
+    fileSize: 100 * 1024 * 1024, // 100MB
+  },
+});
+
 testS3Connection();
 
 module.exports = {
@@ -315,4 +366,7 @@ module.exports = {
   uploadWhyWatchISBCImage,
   uploadISBCStandoutImage,
   bucketName,
+  uploadISBFilmsCrewPhoto,
+  uploadISBFilmsBackgroundVideo
+
 };
