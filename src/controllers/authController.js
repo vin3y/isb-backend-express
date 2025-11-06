@@ -427,6 +427,55 @@ const getPasswordStatus = async (req, res) => {
   }
 };
 
+
+const adminResetPassword = async (req, res) => {
+  const { email, newPassword } = req.body;
+
+  if (!email || !newPassword) {
+    return res.status(400).json({ error: 'Email and new password are required' });
+  }
+
+  try {
+    // Check if user exists
+    const userResult = await db.query('SELECT id FROM users WHERE email = $1', [email]);
+
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Hash new password
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    // Update password and reset expiry
+    const currentUTC = getCurrentUTC();
+    const newExpiryUTC = addDaysToUTC(60); // 60 days from now
+
+    await db.query(
+      `UPDATE users
+       SET password_hash = $1,
+           password_updated_at = $2,
+           password_expires_at = $3
+       WHERE email = $4`,
+      [hashedPassword, currentUTC, newExpiryUTC, email]
+    );
+
+    // Revoke all existing refresh tokens
+    await db.query(
+      'UPDATE refresh_tokens SET revoked = true WHERE user_id = $1',
+      [userResult.rows[0].id]
+    );
+
+    res.json({
+      message: 'Password reset successfully',
+      email: email,
+      expiresAt: newExpiryUTC,
+    });
+  } catch (error) {
+    console.error('Admin password reset error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+};
+
 // Helper function to calculate time ago
 function getTimeAgo(date) {
   const now = new Date();
@@ -447,4 +496,5 @@ module.exports = {
   resetPassword,
   getLoginHistory,
   getPasswordStatus,
+  adminResetPassword
 };

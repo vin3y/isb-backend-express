@@ -2,9 +2,11 @@ const express = require('express');
 const router = express.Router();
 const isbFilmsPageController = require('../controllers/isbFilmsPageController');
 const isbFilmsCrewController = require('../controllers/isbFilmsCrewController');
+const isbFilmsNewsController = require('../controllers/isbFilmsNewsController');
 const {
   uploadISBFilmsBackgroundVideo,
   uploadISBFilmsCrewPhoto,
+  uploadISBFilmsNewsImage
 } = require('../utils/s3');
 const { authenticateToken } = require('../middlewares/auth');
 
@@ -84,5 +86,28 @@ router.delete(
 
 // Reorder crew members
 router.post('/home/crew/reorder', authenticateToken, isbFilmsCrewController.reorderISBFilmsCrew);
+
+
+// Public routes (no authentication required)
+router.get('/news/latest', isbFilmsNewsController.getLatestNews);
+router.get('/news/category/:category', isbFilmsNewsController.getNewsByCategory);
+
+// Protected routes (require authentication)
+router.get('/news/articles', authenticateToken, isbFilmsNewsController.getAllNews);
+router.get('/news/articles/:newsId', authenticateToken, isbFilmsNewsController.getNewsArticle);
+router.post(
+  '/news/articles',
+  authenticateToken,
+  uploadISBFilmsNewsImage.single('image'),
+  isbFilmsNewsController.createNewsArticle
+);
+router.put(
+  '/news/articles/:newsId',
+  authenticateToken,
+  uploadISBFilmsNewsImage.single('image'),
+  isbFilmsNewsController.updateNewsArticle
+);
+router.delete('/news/articles/:newsId', authenticateToken, isbFilmsNewsController.deleteNewsArticle);
+router.post('/news/articles/reorder', authenticateToken, isbFilmsNewsController.reorderNews);
 
 module.exports = router;

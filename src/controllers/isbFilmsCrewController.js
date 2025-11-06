@@ -94,13 +94,22 @@ const addISBFilmsCrewMember = async (req, res) => {
 
     const newCrew = result.rows[0];
 
-    // Log activity
-    await activityLoggers.pageContent.logCreate(
-      req,
-      'ISB Films Crew',
-      name,
-      newCrew
-    );
+    // Log activity - Use the correct logger
+    if (req.user) {
+      await activityLoggers.pageContent.logContentUpdate(
+        req,
+        'ISB Films - Home',
+        'crew',
+        `Added crew member "${name}" to ISB Films`,
+        null,
+        {
+          crew_id: newCrew.id,
+          name: newCrew.name,
+          designation: newCrew.designation,
+          has_photo: !!photoUrl,
+        }
+      );
+    }
 
     res.status(201).json({
       ...newCrew,
@@ -168,13 +177,34 @@ const updateISBFilmsCrewMember = async (req, res) => {
     }
 
     // Log activity
-    await activityLoggers.pageContent.logUpdate(
-      req,
-      'ISB Films Crew',
-      updatedCrew.name,
-      oldCrew,
-      updatedCrew
-    );
+    if (req.user) {
+      const changedFields = [];
+      if (oldCrew.name !== updatedCrew.name) changedFields.push('name');
+      if (oldCrew.designation !== updatedCrew.designation) changedFields.push('designation');
+      if (oldCrew.about !== updatedCrew.about) changedFields.push('about');
+      if (oldCrew.photo_url !== updatedCrew.photo_url) changedFields.push('photo');
+      if (oldCrew.order_index !== updatedCrew.order_index) changedFields.push('order');
+      if (oldCrew.is_active !== updatedCrew.is_active) changedFields.push('status');
+
+      const fieldsText = changedFields.length > 0 ? changedFields.join(', ') : 'no changes';
+
+      await activityLoggers.pageContent.logContentUpdate(
+        req,
+        'ISB Films - Home',
+        'crew',
+        `Updated crew member "${updatedCrew.name}" (${fieldsText})`,
+        {
+          name: oldCrew.name,
+          designation: oldCrew.designation,
+          photo_updated: req.file ? true : false,
+        },
+        {
+          name: updatedCrew.name,
+          designation: updatedCrew.designation,
+          changes: changedFields,
+        }
+      );
+    }
 
     res.json({
       ...updatedCrew,
@@ -216,12 +246,20 @@ const deleteISBFilmsCrewMember = async (req, res) => {
     }
 
     // Log activity
-    await activityLoggers.pageContent.logDelete(
-      req,
-      'ISB Films Crew',
-      crew.name,
-      crew
-    );
+    if (req.user) {
+      await activityLoggers.pageContent.logContentUpdate(
+        req,
+        'ISB Films - Home',
+        'crew',
+        `Removed crew member "${crew.name}" from ISB Films`,
+        {
+          crew_id: crew.id,
+          name: crew.name,
+          designation: crew.designation,
+        },
+        null
+      );
+    }
 
     res.json({ message: 'Crew member deleted successfully' });
   } catch (error) {
@@ -250,11 +288,19 @@ const reorderISBFilmsCrew = async (req, res) => {
     await Promise.all(promises);
 
     // Log activity
-    await activityLoggers.pageContent.logReorder(
-      req,
-      'ISB Films Crew',
-      crewMembers.length
-    );
+    if (req.user) {
+      await activityLoggers.pageContent.logContentUpdate(
+        req,
+        'ISB Films - Home',
+        'crew',
+        `Reordered ${crewMembers.length} crew members`,
+        null,
+        {
+          crew_count: crewMembers.length,
+          reorder_ids: crewMembers.map(m => m.id),
+        }
+      );
+    }
 
     res.json({ message: 'Crew members reordered successfully' });
   } catch (error) {

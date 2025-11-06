@@ -252,6 +252,9 @@ const uploadISBCStandoutImage = multer({
   },
 });
 
+
+
+
 // Delete file from S3
 const deleteFile = async (fileUrl) => {
   try {
@@ -354,6 +357,38 @@ const uploadISBFilmsBackgroundVideo = multer({
 
 testS3Connection();
 
+// ISB Films - News Article Image Upload
+const uploadISBFilmsNewsImage = multer({
+  storage: multerS3({
+    s3: s3,
+    bucket: bucketName,
+    contentType: multerS3.AUTO_CONTENT_TYPE,
+    key: (req, file, cb) => {
+      const timestamp = Date.now();
+      const title = req.body.title || 'news-article';
+      const cleanTitle = title
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, '_')
+        .replace(/_+/g, '_')
+        .replace(/^_|_$/g, '')
+        .substring(0, 50); // Limit length
+      const fileExtension = file.originalname.split('.').pop();
+      const fileName = `isbfilms/news/${timestamp}-${cleanTitle}.${fileExtension}`;
+      cb(null, fileName);
+    },
+  }),
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only image files are allowed'), false);
+    }
+  },
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB
+  },
+});
+
 module.exports = {
   uploadBackgroundVideo,
   uploadPartnerLogo,
@@ -367,6 +402,7 @@ module.exports = {
   uploadISBCStandoutImage,
   bucketName,
   uploadISBFilmsCrewPhoto,
-  uploadISBFilmsBackgroundVideo
+  uploadISBFilmsBackgroundVideo,
+  uploadISBFilmsNewsImage,
 
 };
