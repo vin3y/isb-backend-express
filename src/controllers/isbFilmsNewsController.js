@@ -1,8 +1,26 @@
-const db = require("../config/db");
+const db = require('../config/db');
 const { deleteFile } = require('../utils/s3');
-const { activityLoggers } = require('../middlewares/activityLogger')
+const { activityLoggers } = require('../middlewares/activityLogger');
 
+// ==================== GET ALL NEWS ARTICLES (PUBLISHED ONLY) ====================
 const getAllNews = async (req, res) => {
+  try {
+    // Only fetch published articles for public
+    const result = await db.query(
+      `SELECT * FROM isb_films_news_articles
+       WHERE status = 'published'
+       ORDER BY order_index, publish_date DESC, created_at DESC`
+    );
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching news:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+};
+
+// ==================== GET ALL NEWS ARTICLES (FOR ADMIN - ALL STATUSES) ====================
+const getAllNewsAdmin = async (req, res) => {
   try {
     const { status, category, limit, offset } = req.query;
 
@@ -91,7 +109,7 @@ const getNewsArticle = async (req, res) => {
   }
 };
 
-// ==================== CREATE NEWS ARTICLE ====================
+// ==================== CREATE NEWS ARTICLE (DEFAULT: DRAFT) ====================
 const createNewsArticle = async (req, res) => {
   const {
     title,
@@ -99,11 +117,10 @@ const createNewsArticle = async (req, res) => {
     publish_date,
     author,
     category,
-    status,
     order_index,
   } = req.body;
 
-  console.log('📰 Creating news article:', { title, category, status });
+  console.log('📰 Creating news article:', { title, category, status: 'draft' });
 
   if (!title) {
     return res.status(400).json({ error: 'Title is required' });
@@ -130,7 +147,7 @@ const createNewsArticle = async (req, res) => {
         page_id, title, description, image_url, publish_date,
         author, category, status, order_index,
         created_at, updated_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, 'draft', $8, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
       RETURNING *`,
       [
         pageId,
@@ -140,42 +157,38 @@ const createNewsArticle = async (req, res) => {
         publish_date || new Date(),
         author || null,
         category || null,
-        status || 'draft',
         order_index || 0,
       ]
     );
 
     const newArticle = result.rows[0];
-    console.log('✅ News article created:', newArticle.id);
+    console.log('✅ News article created with status: draft, ID:', newArticle.id);
 
     // Log activity
     try {
       if (req.user && activityLoggers && activityLoggers.pageContent) {
-        console.log('📝 Logging activity...');
         await activityLoggers.pageContent.logContentUpdate(
           req,
           'ISB Films - News',
           'news_article',
-          `Added news article "${title}"`,
+          `Added news article "${title}" (draft)`,
           null,
           {
             article_id: newArticle.id,
             title: newArticle.title,
             category: newArticle.category,
+            status: 'draft',
             has_image: !!imageUrl,
           }
         );
-        console.log('✅ Activity logged');
-      } else {
-        console.log('⚠️ Skipping activity log - no user or logger available');
       }
     } catch (logError) {
-      console.error('⚠️ Error logging activity (non-critical):', logError.message);
+      console.error('⚠️ Error logging activity:', logError.message);
     }
 
     res.status(201).json({
       ...newArticle,
-      message: 'News article created successfully',
+      message: 'News article created as draft successfully',
     });
   } catch (error) {
     console.error('❌ Error creating news article:', error);
@@ -202,7 +215,6 @@ const updateNewsArticle = async (req, res) => {
   console.log('✏️ Updating news article:', newsId);
 
   try {
-    // Get old data
     const oldDataResult = await db.query(
       'SELECT * FROM isb_films_news_articles WHERE id = $1',
       [newsId]
@@ -213,8 +225,6 @@ const updateNewsArticle = async (req, res) => {
     }
 
     const oldArticle = oldDataResult.rows[0];
-
-    // Handle file upload
     const imageUrl = req.file ? req.file.location : oldArticle.image_url;
 
     const result = await db.query(
@@ -245,11 +255,9 @@ const updateNewsArticle = async (req, res) => {
 
     const updatedArticle = result.rows[0];
 
-    // Delete old image if new one uploaded
     if (req.file && oldArticle.image_url) {
       try {
         await deleteFile(oldArticle.image_url);
-        console.log('🗑️ Old image deleted');
       } catch (error) {
         console.error('⚠️ Error deleting old image:', error);
       }
@@ -258,35 +266,17 @@ const updateNewsArticle = async (req, res) => {
     // Log activity
     try {
       if (req.user && activityLoggers && activityLoggers.pageContent) {
-        const changedFields = [];
-        if (oldArticle.title !== updatedArticle.title) changedFields.push('title');
-        if (oldArticle.description !== updatedArticle.description) changedFields.push('description');
-        if (oldArticle.image_url !== updatedArticle.image_url) changedFields.push('image');
-        if (oldArticle.category !== updatedArticle.category) changedFields.push('category');
-        if (oldArticle.status !== updatedArticle.status) changedFields.push('status');
-
-        const fieldsText = changedFields.length > 0 ? changedFields.join(', ') : 'no changes';
-
         await activityLoggers.pageContent.logContentUpdate(
           req,
           'ISB Films - News',
           'news_article',
-          `Updated news article "${updatedArticle.title}" (${fieldsText})`,
-          {
-            title: oldArticle.title,
-            category: oldArticle.category,
-            status: oldArticle.status,
-          },
-          {
-            title: updatedArticle.title,
-            category: updatedArticle.category,
-            status: updatedArticle.status,
-            changes: changedFields,
-          }
+          `Updated news article "${updatedArticle.title}"`,
+          oldArticle,
+          updatedArticle
         );
       }
     } catch (logError) {
-      console.error('⚠️ Error logging activity (non-critical):', logError.message);
+      console.error('⚠️ Error logging activity:', logError.message);
     }
 
     res.json({
@@ -303,10 +293,7 @@ const updateNewsArticle = async (req, res) => {
 const deleteNewsArticle = async (req, res) => {
   const { newsId } = req.params;
 
-  console.log('🗑️ Deleting news article:', newsId);
-
   try {
-    // Get article data
     const articleResult = await db.query(
       'SELECT * FROM isb_films_news_articles WHERE id = $1',
       [newsId]
@@ -318,14 +305,11 @@ const deleteNewsArticle = async (req, res) => {
 
     const article = articleResult.rows[0];
 
-    // Delete article
     await db.query('DELETE FROM isb_films_news_articles WHERE id = $1', [newsId]);
 
-    // Delete image from S3
     if (article.image_url) {
       try {
         await deleteFile(article.image_url);
-        console.log('🗑️ Image deleted from S3');
       } catch (error) {
         console.error('⚠️ Error deleting image:', error);
       }
@@ -339,16 +323,12 @@ const deleteNewsArticle = async (req, res) => {
           'ISB Films - News',
           'news_article',
           `Deleted news article "${article.title}"`,
-          {
-            article_id: article.id,
-            title: article.title,
-            category: article.category,
-          },
+          article,
           null
         );
       }
     } catch (logError) {
-      console.error('⚠️ Error logging activity (non-critical):', logError.message);
+      console.error('⚠️ Error logging activity:', logError.message);
     }
 
     res.json({ message: 'News article deleted successfully' });
@@ -366,8 +346,6 @@ const reorderNews = async (req, res) => {
     return res.status(400).json({ error: 'Invalid articles array' });
   }
 
-  console.log('🔄 Reordering news articles:', articles.length);
-
   try {
     const promises = articles.map((article) =>
       db.query(
@@ -378,25 +356,6 @@ const reorderNews = async (req, res) => {
 
     await Promise.all(promises);
 
-    // Log activity
-    try {
-      if (req.user && activityLoggers && activityLoggers.pageContent) {
-        await activityLoggers.pageContent.logContentUpdate(
-          req,
-          'ISB Films - News',
-          'news_article',
-          `Reordered ${articles.length} news articles`,
-          null,
-          {
-            article_count: articles.length,
-            reorder_ids: articles.map((a) => a.id),
-          }
-        );
-      }
-    } catch (logError) {
-      console.error('⚠️ Error logging activity (non-critical):', logError.message);
-    }
-
     res.json({ message: 'News articles reordered successfully' });
   } catch (error) {
     console.error('❌ Error reordering news articles:', error);
@@ -404,59 +363,12 @@ const reorderNews = async (req, res) => {
   }
 };
 
-// ==================== GET LATEST NEWS (PUBLIC) ====================
-const getLatestNews = async (req, res) => {
-  try {
-    const { limit = 6 } = req.query;
-
-    const result = await db.query(
-      `SELECT 
-        id, title, description, image_url, publish_date, 
-        author, category, created_at
-       FROM isb_films_news_articles
-       WHERE status = 'published'
-       ORDER BY publish_date DESC, created_at DESC
-       LIMIT $1`,
-      [parseInt(limit)]
-    );
-
-    res.json(result.rows);
-  } catch (error) {
-    console.error('Error fetching latest news:', error);
-    res.status(500).json({ error: 'Server error' });
-  }
-};
-
-// ==================== GET NEWS BY CATEGORY ====================
-const getNewsByCategory = async (req, res) => {
-  const { category } = req.params;
-
-  try {
-    const result = await db.query(
-      `SELECT * FROM isb_films_news_articles
-       WHERE category = $1 AND status = 'published'
-       ORDER BY publish_date DESC, created_at DESC`,
-      [category]
-    );
-
-    res.json({
-      category: category,
-      articles: result.rows,
-      count: result.rows.length,
-    });
-  } catch (error) {
-    console.error('Error fetching news by category:', error);
-    res.status(500).json({ error: 'Server error' });
-  }
-};
-
 module.exports = {
   getAllNews,
+  getAllNewsAdmin,
   getNewsArticle,
   createNewsArticle,
   updateNewsArticle,
   deleteNewsArticle,
   reorderNews,
-  getLatestNews,
-  getNewsByCategory,
 };

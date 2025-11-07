@@ -1,14 +1,19 @@
 const db = require('../config/db');
-const {deleteFile} = require('../utils/s3')
-const {generateThumbnail, deleteThumbnail, generateThumbnailFromUrl} = require('../services/thumbanailServices');
-const {activityLoggers} = require('../middlewares/activityLogger');
-
+const { deleteFile } = require('../utils/s3');
+const {
+  generateThumbnail,
+  deleteThumbnail,
+  generateThumbnailFromUrl,
+} = require('../services/thumbanailServices');
+const { activityLoggers } = require('../middlewares/activityLogger');
 
 // Get all ISB Films pages
 const getAllISBFilmsPages = async (req, res) => {
   try {
     const result = await db.query(
-      'SELECT id, name, title, status, background_thumbnail_url, updated_at FROM isb_films_pages ORDER BY id'
+      `SELECT id, name, title, status, background_thumbnail_url, updated_at 
+       FROM isb_films_pages 
+       ORDER BY id`
     );
     res.json(result.rows);
   } catch (error) {
@@ -33,13 +38,40 @@ const getISBFilmsPageDetails = async (req, res) => {
 
     const page = pageResult.rows[0];
 
-    // If it's the home page, also fetch crew members
+    // Fetch associated content based on page
     if (pageName === 'home') {
+      // Get crew members
       const crewResult = await db.query(
-        'SELECT * FROM isb_films_crew WHERE page_id = $1 AND is_active = true ORDER BY order_index',
+        `SELECT * FROM isb_films_crew 
+         WHERE page_id = $1 
+         ORDER BY order_index, id`,
         [page.id]
       );
       page.crew = crewResult.rows;
+    }
+
+    if (pageName === 'filmography') {
+      // Get movies
+      const moviesResult = await db.query(
+        `SELECT m.*, 
+         (SELECT COUNT(*) FROM isb_films_movie_awards WHERE movie_id = m.id) as awards_count
+         FROM isb_films_movies m
+         WHERE m.page_id = $1 
+         ORDER BY m.order_index, m.year_of_release DESC`,
+        [page.id]
+      );
+      page.movies = moviesResult.rows;
+    }
+
+    if (pageName === 'news') {
+      // Get news articles
+      const newsResult = await db.query(
+        `SELECT * FROM isb_films_news_articles 
+         WHERE page_id = $1 
+         ORDER BY order_index, publish_date DESC`,
+        [page.id]
+      );
+      page.news = newsResult.rows;
     }
 
     res.json(page);
@@ -48,7 +80,6 @@ const getISBFilmsPageDetails = async (req, res) => {
     res.status(500).json({ error: 'Server error' });
   }
 };
-
 
 // Save ISB Films page as draft
 const saveISBFilmsPage = async (req, res) => {
@@ -90,9 +121,19 @@ const saveISBFilmsPage = async (req, res) => {
       { title: updatedPage.title, status: updatedPage.status }
     );
 
+    // Log title update specifically if title changed
+    if (oldPage.title !== title) {
+      await activityLoggers.pageContent.logTitleUpdate(
+        req,
+        `ISB Films - ${pageName}`,
+        oldPage.title,
+        title
+      );
+    }
+
     res.json({
       ...updatedPage,
-      message: 'ISB Films page saved as draft',
+      message: 'Page saved as draft',
     });
   } catch (error) {
     console.error('Error saving ISB Films page:', error);
@@ -100,13 +141,15 @@ const saveISBFilmsPage = async (req, res) => {
   }
 };
 
-
-// Publish ISB Films page
+// Publish ISB Films page with all sections
 const publishISBFilmsPage = async (req, res) => {
   const { pageName } = req.params;
   const { title } = req.body;
 
   try {
+    // Start transaction
+    await db.query('BEGIN');
+
     // Get old data for logging
     const oldDataResult = await db.query(
       'SELECT * FROM isb_films_pages WHERE name = $1',
@@ -115,9 +158,13 @@ const publishISBFilmsPage = async (req, res) => {
     const oldPage = oldDataResult.rows[0];
 
     if (!oldPage) {
+      await db.query('ROLLBACK');
       return res.status(404).json({ error: 'Page not found' });
     }
 
+    const pageId = oldPage.id;
+
+    // Update page
     let query, params;
     if (title !== undefined) {
       query = `UPDATE isb_films_pages 
@@ -136,6 +183,64 @@ const publishISBFilmsPage = async (req, res) => {
     const result = await db.query(query, params);
     const updatedPage = result.rows[0];
 
+    let publishedCounts = {
+      page: pageName,
+      crew: 0,
+      movies: 0,
+      news: 0,
+      awards: 0,
+    };
+
+    // Publish all associated content based on page
+    if (pageName === 'home') {
+      // Publish all crew members
+      const crewResult = await db.query(
+        `UPDATE isb_films_crew 
+         SET status = 'published', updated_at = CURRENT_TIMESTAMP 
+         WHERE page_id = $1 AND status = 'draft' 
+         RETURNING id`,
+        [pageId]
+      );
+      publishedCounts.crew = crewResult.rowCount;
+    }
+
+    if (pageName === 'filmography') {
+      // Publish all movies
+      const moviesResult = await db.query(
+        `UPDATE isb_films_movies 
+         SET status = 'published', updated_at = CURRENT_TIMESTAMP 
+         WHERE page_id = $1 AND status = 'draft' 
+         RETURNING id`,
+        [pageId]
+      );
+      publishedCounts.movies = moviesResult.rowCount;
+
+      // Count awards for published movies
+      const awardsResult = await db.query(
+        `SELECT COUNT(*) as count FROM isb_films_movie_awards 
+         WHERE movie_id IN (
+           SELECT id FROM isb_films_movies WHERE page_id = $1 AND status = 'published'
+         )`,
+        [pageId]
+      );
+      publishedCounts.awards = parseInt(awardsResult.rows[0].count);
+    }
+
+    if (pageName === 'news') {
+      // Publish all news articles
+      const newsResult = await db.query(
+        `UPDATE isb_films_news_articles 
+         SET status = 'published', updated_at = CURRENT_TIMESTAMP 
+         WHERE page_id = $1 AND status = 'draft' 
+         RETURNING id`,
+        [pageId]
+      );
+      publishedCounts.news = newsResult.rowCount;
+    }
+
+    // Commit transaction
+    await db.query('COMMIT');
+
     // Log the publish activity
     await activityLoggers.pageContent.logPublish(
       req,
@@ -143,11 +248,33 @@ const publishISBFilmsPage = async (req, res) => {
       updatedPage.title || pageName
     );
 
+    // Log status change if it was different
+    if (oldPage.status !== 'published') {
+      await activityLoggers.pageContent.logStatusChange(
+        req,
+        `ISB Films - ${pageName}`,
+        oldPage.status,
+        'published'
+      );
+    }
+
+    // Log title update if title was provided and changed
+    if (title !== undefined && oldPage.title !== title) {
+      await activityLoggers.pageContent.logTitleUpdate(
+        req,
+        `ISB Films - ${pageName}`,
+        oldPage.title,
+        title
+      );
+    }
+
     res.json({
       ...updatedPage,
-      message: 'ISB Films page published successfully',
+      publishedCounts,
+      message: `Page and all sections published successfully`,
     });
   } catch (error) {
+    await db.query('ROLLBACK');
     console.error('Error publishing ISB Films page:', error);
     res.status(500).json({ error: 'Server error' });
   }
@@ -163,6 +290,7 @@ const updateISBFilmsPageStatus = async (req, res) => {
   }
 
   try {
+    // Get old data for logging
     const oldDataResult = await db.query(
       'SELECT * FROM isb_films_pages WHERE name = $1',
       [pageName]
@@ -174,12 +302,16 @@ const updateISBFilmsPageStatus = async (req, res) => {
     }
 
     const result = await db.query(
-      'UPDATE isb_films_pages SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE name = $2 RETURNING *',
+      `UPDATE isb_films_pages 
+       SET status = $1, updated_at = CURRENT_TIMESTAMP 
+       WHERE name = $2 
+       RETURNING *`,
       [status, pageName]
     );
 
     const updatedPage = result.rows[0];
 
+    // Log the status change activity
     await activityLoggers.pageContent.logStatusChange(
       req,
       `ISB Films - ${pageName}`,
@@ -200,6 +332,7 @@ const updateISBFilmsPageTitle = async (req, res) => {
   const { title } = req.body;
 
   try {
+    // Get old data for logging
     const oldDataResult = await db.query(
       'SELECT * FROM isb_films_pages WHERE name = $1',
       [pageName]
@@ -211,12 +344,16 @@ const updateISBFilmsPageTitle = async (req, res) => {
     }
 
     const result = await db.query(
-      'UPDATE isb_films_pages SET title = $1, updated_at = CURRENT_TIMESTAMP WHERE name = $2 RETURNING *',
+      `UPDATE isb_films_pages 
+       SET title = $1, updated_at = CURRENT_TIMESTAMP 
+       WHERE name = $2 
+       RETURNING *`,
       [title, pageName]
     );
 
     const updatedPage = result.rows[0];
 
+    // Log the title update activity
     await activityLoggers.pageContent.logTitleUpdate(
       req,
       `ISB Films - ${pageName}`,
@@ -231,20 +368,22 @@ const updateISBFilmsPageTitle = async (req, res) => {
   }
 };
 
-// Upload background video for ISB Films page
+// Upload ISB Films background video
 const uploadISBFilmsBackgroundVideo = async (req, res) => {
   const { pageName } = req.params;
+
   if (!req.file) {
     return res.status(400).json({ error: 'No video file provided' });
   }
 
   try {
+    // Get the old video and thumbnail URLs
     const oldDataResult = await db.query(
       'SELECT * FROM isb_films_pages WHERE name = $1',
       [pageName]
     );
-    const oldPage = oldDataResult.rows[0];
 
+    const oldPage = oldDataResult.rows[0];
     if (!oldPage) {
       return res.status(404).json({ error: 'Page not found' });
     }
@@ -252,7 +391,7 @@ const uploadISBFilmsBackgroundVideo = async (req, res) => {
     // Generate thumbnail for the new video
     let thumbnailUrl = null;
     try {
-      console.log('🎬 Generating thumbnail for ISB Films video...');
+      console.log('🎬 Attempting to generate thumbnail...');
       thumbnailUrl = await generateThumbnail(req.file, `isbfilms-${pageName}`);
       if (thumbnailUrl) {
         console.log('✅ Thumbnail generated successfully:', thumbnailUrl);
@@ -276,7 +415,7 @@ const uploadISBFilmsBackgroundVideo = async (req, res) => {
 
     const updatedPage = result.rows[0];
 
-    // Log the activity
+    // Log the background video upload activity
     await activityLoggers.pageContent.logBackgroundVideoUpload(
       req,
       `ISB Films - ${pageName}`,
@@ -286,7 +425,27 @@ const uploadISBFilmsBackgroundVideo = async (req, res) => {
       req.file.size
     );
 
-    // Delete old files
+    // Log the thumbnail generation if successful
+    if (thumbnailUrl) {
+      await activityLoggers.pageContent.logThumbnailGeneration(
+        req,
+        `ISB Films - ${pageName}`,
+        oldPage.background_thumbnail_url,
+        thumbnailUrl
+      );
+    }
+
+    // Log status change to draft if it was published
+    if (oldPage.status === 'published') {
+      await activityLoggers.pageContent.logStatusChange(
+        req,
+        `ISB Films - ${pageName}`,
+        'published',
+        'draft'
+      );
+    }
+
+    // Delete old files after successful update
     if (oldPage.background_video_url) {
       try {
         await deleteFile(oldPage.background_video_url);
@@ -312,7 +471,7 @@ const uploadISBFilmsBackgroundVideo = async (req, res) => {
   }
 };
 
-// Generate thumbnail for existing ISB Films video
+// Generate thumbnail for existing video
 const generateISBFilmsPageThumbnail = async (req, res) => {
   const { pageName } = req.params;
 
@@ -351,12 +510,16 @@ const generateISBFilmsPageThumbnail = async (req, res) => {
 
     // Update database
     const result = await db.query(
-      'UPDATE isb_films_pages SET background_thumbnail_url = $1, updated_at = CURRENT_TIMESTAMP WHERE name = $2 RETURNING *',
+      `UPDATE isb_films_pages 
+       SET background_thumbnail_url = $1, updated_at = CURRENT_TIMESTAMP 
+       WHERE name = $2 
+       RETURNING *`,
       [thumbnailUrl, pageName]
     );
 
     const updatedPage = result.rows[0];
 
+    // Log the thumbnail generation activity
     await activityLoggers.pageContent.logThumbnailGeneration(
       req,
       `ISB Films - ${pageName}`,

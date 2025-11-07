@@ -20,7 +20,10 @@ const s3 = new AWS.S3({
 
 const bucketName = process.env.AWS_BUCKETNAME;
 
-// Upload middleware for background videos
+// ============================================================================
+// EXISTING UPLOADS (Your original functions)
+// ============================================================================
+
 const uploadBackgroundVideo = multer({
   storage: multerS3({
     s3: s3,
@@ -68,7 +71,6 @@ const uploadTeamPhoto = multer({
   },
 });
 
-// Upload middleware for partner logos
 const uploadPartnerLogo = multer({
   storage: multerS3({
     s3: s3,
@@ -252,10 +254,242 @@ const uploadISBCStandoutImage = multer({
   },
 });
 
+// ============================================================================
+// ISB FILMS - CREW PHOTO UPLOAD
+// ============================================================================
 
+const uploadISBFilmsCrewPhoto = multer({
+  storage: multerS3({
+    s3: s3,
+    bucket: bucketName,
+    contentType: multerS3.AUTO_CONTENT_TYPE,
+    key: (req, file, cb) => {
+      const timestamp = Date.now();
+      const name = req.body.name || 'crew-member';
+      const cleanName = name
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, '_')
+        .replace(/_+/g, '_')
+        .replace(/^_|_$/g, '')
+        .substring(0, 50);
+      const fileExtension = file.originalname.split('.').pop();
+      const fileName = `isbfilms/crew/${timestamp}-${cleanName}.${fileExtension}`;
+      cb(null, fileName);
+    },
+  }),
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only image files are allowed'), false);
+    }
+  },
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB
+  },
+});
 
+// ============================================================================
+// ISB FILMS - BACKGROUND VIDEO UPLOAD
+// ============================================================================
 
-// Delete file from S3
+const uploadISBFilmsBackgroundVideo = multer({
+  storage: multerS3({
+    s3: s3,
+    bucket: bucketName,
+    contentType: multerS3.AUTO_CONTENT_TYPE,
+    key: (req, file, cb) => {
+      const pageName = req.params.pageName || 'home';
+      const timestamp = Date.now();
+      const cleanPageName = pageName
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, '_');
+      const fileExtension = file.originalname.split('.').pop();
+      const fileName = `isbfilms/${cleanPageName}/background/${timestamp}-${cleanPageName}.${fileExtension}`;
+      cb(null, fileName);
+    },
+  }),
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith('video/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only video files are allowed'), false);
+    }
+  },
+  limits: {
+    fileSize: 100 * 1024 * 1024, // 100MB
+  },
+});
+
+// ============================================================================
+// ISB FILMS - NEWS IMAGE UPLOAD
+// ============================================================================
+
+const uploadISBFilmsNewsImage = multer({
+  storage: multerS3({
+    s3: s3,
+    bucket: bucketName,
+    contentType: multerS3.AUTO_CONTENT_TYPE,
+    key: (req, file, cb) => {
+      const timestamp = Date.now();
+      const title = req.body.title || 'news-article';
+      const cleanTitle = title
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, '_')
+        .replace(/_+/g, '_')
+        .replace(/^_|_$/g, '')
+        .substring(0, 50);
+      const fileExtension = file.originalname.split('.').pop();
+      const fileName = `isbfilms/news/${timestamp}-${cleanTitle}.${fileExtension}`;
+      cb(null, fileName);
+    },
+  }),
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only image files are allowed'), false);
+    }
+  },
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB
+  },
+});
+
+// ============================================================================
+// ISB FILMS - MOVIE POSTER UPLOAD (DEDICATED FUNCTION) ⭐ NEW
+// ============================================================================
+
+const uploadISBFilmsMoviePoster = multer({
+  storage: multerS3({
+    s3: s3,
+    bucket: bucketName,
+    contentType: multerS3.AUTO_CONTENT_TYPE,
+    key: (req, file, cb) => {
+      const timestamp = Date.now();
+      const filmName = req.body.film_name || 'movie';
+
+      // Clean the film name for use in filename
+      const cleanName = filmName
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, '_')
+        .replace(/_+/g, '_')
+        .replace(/^_|_$/g, '')
+        .substring(0, 50); // Limit to 50 characters
+
+      const fileExtension = file.originalname.split('.').pop();
+      const fileName = `isbfilms/movies/posters/${timestamp}-${cleanName}.${fileExtension}`;
+
+      console.log('📸 Uploading movie poster:', fileName);
+      cb(null, fileName);
+    },
+  }),
+  fileFilter: (req, file, cb) => {
+    // Only allow image files
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only image files are allowed for movie posters'), false);
+    }
+  },
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB max
+  },
+});
+
+// ============================================================================
+// ISB FILMS - AWARD LOGO UPLOAD
+// ============================================================================
+
+const uploadISBFilmsAwardLogo = multer({
+  storage: multerS3({
+    s3: s3,
+    bucket: bucketName,
+    contentType: multerS3.AUTO_CONTENT_TYPE,
+    key: (req, file, cb) => {
+      const timestamp = Date.now();
+      const fieldName = file.fieldname || 'award';
+      const cleanName = fieldName
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, '_')
+        .replace(/_+/g, '_')
+        .replace(/^_|_$/g, '')
+        .substring(0, 50);
+      const fileExtension = file.originalname.split('.').pop();
+      const fileName = `isbfilms/awards/${timestamp}-${cleanName}.${fileExtension}`;
+
+      console.log('🏆 Uploading award logo:', fileName);
+      cb(null, fileName);
+    },
+  }),
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only image files are allowed for award logos'), false);
+    }
+  },
+  limits: {
+    fileSize: 5 * 1024 * 1024, // 5MB
+  },
+});
+
+// ============================================================================
+// ISB FILMS - COMBINED MOVIE WITH AWARDS UPLOAD
+// ============================================================================
+
+const uploadISBFilmsMovieWithAwards = multer({
+  storage: multerS3({
+    s3: s3,
+    bucket: bucketName,
+    contentType: multerS3.AUTO_CONTENT_TYPE,
+    key: (req, file, cb) => {
+      const timestamp = Date.now();
+      const filmName = req.body.film_name || 'movie';
+      const cleanName = filmName
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, '_')
+        .replace(/_+/g, '_')
+        .replace(/^_|_$/g, '')
+        .substring(0, 50);
+      const fileExtension = file.originalname.split('.').pop();
+
+      let fileName;
+
+      if (file.fieldname === 'poster') {
+        // Movie poster
+        fileName = `isbfilms/movies/posters/${timestamp}-${cleanName}.${fileExtension}`;
+        console.log('📸 Uploading poster:', fileName);
+      } else if (file.fieldname.startsWith('award_logo_')) {
+        // Award logo files (award_logo_0, award_logo_1, etc.)
+        const awardIndex = file.fieldname.replace('award_logo_', '');
+        fileName = `isbfilms/awards/${timestamp}-${cleanName}-award-${awardIndex}.${fileExtension}`;
+        console.log('🏆 Uploading award logo:', fileName);
+      } else {
+        // Fallback for any other files
+        fileName = `isbfilms/movies/misc/${timestamp}-${file.fieldname}.${fileExtension}`;
+        console.log('📁 Uploading misc file:', fileName);
+      }
+
+      cb(null, fileName);
+    },
+  }),
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only image files are allowed'), false);
+    }
+  },
+  limits: {
+    fileSize: 15 * 1024 * 1024, // 15MB per file
+  },
+});
+
+// ============================================================================
+// DELETE FILE FROM S3
+// ============================================================================
+
 const deleteFile = async (fileUrl) => {
   try {
     if (!fileUrl) return;
@@ -278,7 +512,7 @@ const deleteFile = async (fileUrl) => {
 
     const params = {
       Bucket: bucketName,
-      Key: key,
+      Key: decodeURIComponent(key),
     };
 
     await s3.deleteObject(params).promise();
@@ -288,7 +522,10 @@ const deleteFile = async (fileUrl) => {
   }
 };
 
-// Test S3 connection
+// ============================================================================
+// TEST S3 CONNECTION
+// ============================================================================
+
 const testS3Connection = async () => {
   try {
     const params = {
@@ -304,105 +541,33 @@ const testS3Connection = async () => {
   }
 };
 
-
-//isb films functions
-
-const uploadISBFilmsCrewPhoto = multer({
-  storage: multerS3({
-    s3: s3,
-    bucket: bucketName,
-    contentType: multerS3.AUTO_CONTENT_TYPE,
-    key: (req, file, cb) => {
-      const timestamp = Date.now();
-      const fileName = `isbfilms/crew/${timestamp}-${file.originalname}`;
-      cb(null, fileName);
-    },
-  }),
-  fileFilter: (req, file, cb) => {
-    if (file.mimetype.startsWith('image/')) {
-      cb(null, true);
-    } else {
-      cb(new Error('Only image files are allowed'), false);
-    }
-  },
-  limits: {
-    fileSize: 5 * 1024 * 1024, // 5MB
-  },
-});
-
-// ISB Films - Background Video Upload
-const uploadISBFilmsBackgroundVideo = multer({
-  storage: multerS3({
-    s3: s3,
-    bucket: bucketName,
-    contentType: multerS3.AUTO_CONTENT_TYPE,
-    key: (req, file, cb) => {
-      const pageName = req.params.pageName || 'home';
-      const timestamp = Date.now();
-      const fileName = `isbfilms/${pageName}/background/${timestamp}-${file.originalname}`;
-      cb(null, fileName);
-    },
-  }),
-  fileFilter: (req, file, cb) => {
-    if (file.mimetype.startsWith('video/')) {
-      cb(null, true);
-    } else {
-      cb(new Error('Only video files are allowed'), false);
-    }
-  },
-  limits: {
-    fileSize: 100 * 1024 * 1024, // 100MB
-  },
-});
-
 testS3Connection();
 
-// ISB Films - News Article Image Upload
-const uploadISBFilmsNewsImage = multer({
-  storage: multerS3({
-    s3: s3,
-    bucket: bucketName,
-    contentType: multerS3.AUTO_CONTENT_TYPE,
-    key: (req, file, cb) => {
-      const timestamp = Date.now();
-      const title = req.body.title || 'news-article';
-      const cleanTitle = title
-        .toLowerCase()
-        .replace(/[^a-z0-9]/g, '_')
-        .replace(/_+/g, '_')
-        .replace(/^_|_$/g, '')
-        .substring(0, 50); // Limit length
-      const fileExtension = file.originalname.split('.').pop();
-      const fileName = `isbfilms/news/${timestamp}-${cleanTitle}.${fileExtension}`;
-      cb(null, fileName);
-    },
-  }),
-  fileFilter: (req, file, cb) => {
-    if (file.mimetype.startsWith('image/')) {
-      cb(null, true);
-    } else {
-      cb(new Error('Only image files are allowed'), false);
-    }
-  },
-  limits: {
-    fileSize: 10 * 1024 * 1024, // 10MB
-  },
-});
+// ============================================================================
+// EXPORTS
+// ============================================================================
 
 module.exports = {
+  // Existing uploads
   uploadBackgroundVideo,
   uploadPartnerLogo,
-  deleteFile,
-  s3,
   uploadTeamPhoto,
   uploadAwardImage,
   uploadKeyOfferingImage,
   uploadCaseStudyImage,
   uploadWhyWatchISBCImage,
   uploadISBCStandoutImage,
-  bucketName,
+
+  // ISB Films uploads
   uploadISBFilmsCrewPhoto,
   uploadISBFilmsBackgroundVideo,
   uploadISBFilmsNewsImage,
+  uploadISBFilmsMoviePoster,           // ⭐ NEW - Dedicated poster upload
+  uploadISBFilmsAwardLogo,             // Award logo only
+  uploadISBFilmsMovieWithAwards,       // Combined movie + awards
 
+  // Utilities
+  deleteFile,
+  s3,
+  bucketName,
 };
