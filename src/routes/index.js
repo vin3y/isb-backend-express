@@ -11,6 +11,7 @@ const partnersRoutes = require('./partnerPageRoutes');
 const contactRoutes = require('./contactRoutes');
 const actionRoutes = require('./actionRoutes');
 const isbFilmsRoutes = require('./isbFilmRoutes');
+const isbFilmsPublicRoutes = require('./isbFilmsPublicRoutes');
 // const {authenticateToken} = require("../middlewares/auth");
 
 const router = express.Router();
@@ -30,6 +31,7 @@ router.use('/actions', actionRoutes);
 
 //isbfilms
 router.use('/isbfilms', isbFilmsRoutes);
+router.use('/public/isbfilms', isbFilmsPublicRoutes); // NEW
 
 
 

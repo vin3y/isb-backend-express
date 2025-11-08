@@ -9,12 +9,9 @@ const pool = new Pool({
   port: process.env.DB_PORT || 5432,
 
   // Add SSL configuration for remote connections
-  ssl:
-    process.env.DB_HOST !== 'localhost' && process.env.DB_HOST !== '127.0.0.1'
-      ? {
-          rejectUnauthorized: false, // Set to true in production with proper certificates
-        }
-      : false,
+  ssl: {
+    rejectUnauthorized: false
+  },
 
   // Connection pool settings
   max: 20, // Maximum number of clients in the pool
