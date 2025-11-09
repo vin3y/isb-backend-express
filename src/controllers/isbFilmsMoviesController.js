@@ -193,6 +193,7 @@ const createMovie = async (req, res) => {
   }
 
   console.log('🎬 Creating movie:', { film_name, status: 'draft' });
+  console.log('📁 Received files:', req.files);
 
   try {
     const pageResult = await db.query(
@@ -209,11 +210,11 @@ const createMovie = async (req, res) => {
     const pageId = pageResult.rows[0].id;
     const oldPageStatus = pageResult.rows[0].status;
 
-    // Get poster URL (NO BANNER)
-    const posterUrl = req.files && req.files['poster']
-      ? req.files['poster'][0].location
-      : null;
+    // FIX: With .any() middleware, files come as array with fieldname property
+    const posterFile = req.files ? req.files.find(file => file.fieldname === 'poster') : null;
+    const posterUrl = posterFile ? posterFile.location : null;
 
+    console.log('📸 Poster file found:', posterFile ? 'YES' : 'NO');
     console.log('📸 Poster URL:', posterUrl);
 
     // Insert movie with status = 'draft'
@@ -257,11 +258,13 @@ const createMovie = async (req, res) => {
         for (let i = 0; i < awardsArray.length; i++) {
           const award = awardsArray[i];
 
-          // Get award logo from uploaded files
+          // FIX: Find award logo file by fieldname
           const awardLogoField = `award_logo_${i}`;
-          const awardLogoUrl = req.files && req.files[awardLogoField]
-            ? req.files[awardLogoField][0].location
-            : null;
+          const awardLogoFile = req.files ? req.files.find(file => file.fieldname === awardLogoField) : null;
+          const awardLogoUrl = awardLogoFile ? awardLogoFile.location : null;
+
+          console.log(`🏆 Award ${i} logo field:`, awardLogoField);
+          console.log(`🏆 Award ${i} logo found:`, awardLogoFile ? 'YES' : 'NO');
 
           // AWARD LOGO IS REQUIRED
           if (!awardLogoUrl) {
@@ -341,7 +344,6 @@ const createMovie = async (req, res) => {
     });
   }
 };
-
 // ==================== UPDATE MOVIE ====================
 const updateMovie = async (req, res) => {
   const { movieId } = req.params;
@@ -364,6 +366,7 @@ const updateMovie = async (req, res) => {
   } = req.body;
 
   console.log('✏️ Updating movie:', movieId);
+  console.log('📁 Received files:', req.files);
 
   try {
     const oldDataResult = await db.query(
@@ -387,10 +390,12 @@ const updateMovie = async (req, res) => {
     const pageId = pageResult.rows[0].id;
     const oldPageStatus = pageResult.rows[0].status;
 
-    // Handle poster upload (NO BANNER)
-    const posterUrl = req.files && req.files['poster']
-      ? req.files['poster'][0].location
-      : oldMovie.poster_url;
+    // FIX: Find poster file with .any() middleware
+    const posterFile = req.files ? req.files.find(file => file.fieldname === 'poster') : null;
+    const posterUrl = posterFile ? posterFile.location : oldMovie.poster_url;
+
+    console.log('📸 Poster file found:', posterFile ? 'YES' : 'NO');
+    console.log('📸 Poster URL:', posterUrl);
 
     // Update movie
     const movieResult = await db.query(
@@ -427,7 +432,7 @@ const updateMovie = async (req, res) => {
     const updatedMovie = movieResult.rows[0];
 
     // Delete old poster if new one uploaded
-    if (req.files && req.files['poster'] && oldMovie.poster_url) {
+    if (posterFile && oldMovie.poster_url) {
       try {
         await deleteFile(oldMovie.poster_url);
       } catch (error) {
@@ -468,11 +473,13 @@ const updateMovie = async (req, res) => {
         for (let i = 0; i < awardsArray.length; i++) {
           const award = awardsArray[i];
 
+          // FIX: Find award logo with .any() middleware
           const awardLogoField = `award_logo_${i}`;
+          const awardLogoFile = req.files ? req.files.find(file => file.fieldname === awardLogoField) : null;
           let awardLogoUrl = award.award_logo_url;
 
-          if (req.files && req.files[awardLogoField]) {
-            awardLogoUrl = req.files[awardLogoField][0].location;
+          if (awardLogoFile) {
+            awardLogoUrl = awardLogoFile.location;
 
             if (award.id && award.award_logo_url) {
               try {
