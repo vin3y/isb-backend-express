@@ -12,104 +12,21 @@ const {
 } = require('../utils/s3');
 const { authenticateToken } = require('../middlewares/auth');
 
-// ==================== ISB FILMS PAGE ROUTES ====================
+// ==================== ISB FILMS MOVIES ROUTES (MUST COME FIRST) ====================
 
-// Get all ISB Films pages (admin)
-router.get('/', authenticateToken, isbFilmsPageController.getAllISBFilmsPages);
 
-// Get specific page details (admin)
-router.get('/:pageName', authenticateToken, isbFilmsPageController.getISBFilmsPageDetails);
+router.use((req, res, next) => {
+  console.log('🎬 ISB Films Route Hit:', req.method, req.path);
+  console.log('🔍 Raw URL:', req.url);
+  console.log('🔍 Original URL:', req.originalUrl);
+  next();
+});
 
-// Save page as draft (admin)
-router.post('/:pageName/save', authenticateToken, isbFilmsPageController.saveISBFilmsPage);
-
-// Publish page and all sections (admin)
-router.post('/:pageName/publish', authenticateToken, isbFilmsPageController.publishISBFilmsPage);
-
-// Update page status (admin)
-router.patch('/:pageName/status', authenticateToken, isbFilmsPageController.updateISBFilmsPageStatus);
-
-// Update page title (admin)
-router.patch('/:pageName/title', authenticateToken, isbFilmsPageController.updateISBFilmsPageTitle);
-
-// Upload background video (admin)
-router.post(
-  '/:pageName/background',
-  authenticateToken,
-  uploadISBFilmsBackgroundVideo.single('video'),
-  isbFilmsPageController.uploadISBFilmsBackgroundVideo
-);
-
-// Generate thumbnail for background video (admin)
-router.post(
-  '/:pageName/generate-thumbnail',
-  authenticateToken,
-  isbFilmsPageController.generateISBFilmsPageThumbnail
-);
-
-// ==================== ISB FILMS CREW ROUTES ====================
-
-// Public route (published only)
-router.get('/home/crew/public', isbFilmsCrewController.getAllISBFilmsCrew);
-
-// Admin routes (all statuses)
-router.get('/home/crew', authenticateToken, isbFilmsCrewController.getAllISBFilmsCrewAdmin);
-router.get('/home/crew/:crewId', authenticateToken, isbFilmsCrewController.getISBFilmsCrewMember);
-
-// Create crew member (admin)
-router.post(
-  '/home/crew',
-  authenticateToken,
-  uploadISBFilmsCrewPhoto.single('photo'),
-  isbFilmsCrewController.addISBFilmsCrewMember
-);
-
-// Update crew member (admin)
-router.put(
-  '/home/crew/:crewId',
-  authenticateToken,
-  uploadISBFilmsCrewPhoto.single('photo'),
-  isbFilmsCrewController.updateISBFilmsCrewMember
-);
-
-// Delete crew member (admin)
-router.delete('/home/crew/:crewId', authenticateToken, isbFilmsCrewController.deleteISBFilmsCrewMember);
-
-// Reorder crew members (admin)
-router.post('/home/crew/reorder', authenticateToken, isbFilmsCrewController.reorderISBFilmsCrew);
-
-// ==================== ISB FILMS NEWS ROUTES ====================
-
-// Public routes (published only)
-router.get('/news/articles/public', isbFilmsNewsController.getAllNews);
-
-// Admin routes (all statuses)
-router.get('/news/articles', authenticateToken, isbFilmsNewsController.getAllNewsAdmin);
-router.get('/news/articles/:newsId', authenticateToken, isbFilmsNewsController.getNewsArticle);
-
-// Create news article (admin)
-router.post(
-  '/news/articles',
-  authenticateToken,
-  uploadISBFilmsNewsImage.single('image'),
-  isbFilmsNewsController.createNewsArticle
-);
-
-// Update news article (admin)
-router.put(
-  '/news/articles/:newsId',
-  authenticateToken,
-  uploadISBFilmsNewsImage.single('image'),
-  isbFilmsNewsController.updateNewsArticle
-);
-
-// Delete news article (admin)
-router.delete('/news/articles/:newsId', authenticateToken, isbFilmsNewsController.deleteNewsArticle);
-
-// Reorder news articles (admin)
-router.post('/news/articles/reorder', authenticateToken, isbFilmsNewsController.reorderNews);
-
-// ==================== ISB FILMS MOVIES ROUTES ====================
+// TEST ROUTE - MUST BE FIRST
+// router.get('/movies', (req, res) => {
+//   console.log('✅ /movies TEST route hit!');
+//   res.json({ message: 'Movies route is working!', path: req.path, url: req.url });
+// });
 
 // Public routes (published only)
 router.get('/movies/latest', isbFilmsMoviesController.getLatestMovies);
@@ -141,5 +58,103 @@ router.delete('/movies/:movieId', authenticateToken, isbFilmsMoviesController.de
 
 // Reorder movies (admin)
 router.post('/movies/reorder', authenticateToken, isbFilmsMoviesController.reorderMovies);
+
+// ==================== ISB FILMS CREW ROUTES (SPECIFIC ROUTES) ====================
+
+// Public route (published only)
+router.get('/home/crew/public', isbFilmsCrewController.getAllISBFilmsCrew);
+
+// Admin routes (all statuses)
+router.get('/home/crew', authenticateToken, isbFilmsCrewController.getAllISBFilmsCrewAdmin);
+router.get('/home/crew/:crewId', authenticateToken, isbFilmsCrewController.getISBFilmsCrewMember);
+
+// Create crew member (admin)
+router.post(
+  '/home/crew',
+  authenticateToken,
+  uploadISBFilmsCrewPhoto.single('photo'),
+  isbFilmsCrewController.addISBFilmsCrewMember
+);
+
+// Update crew member (admin)
+router.put(
+  '/home/crew/:crewId',
+  authenticateToken,
+  uploadISBFilmsCrewPhoto.single('photo'),
+  isbFilmsCrewController.updateISBFilmsCrewMember
+);
+
+// Delete crew member (admin)
+router.delete('/home/crew/:crewId', authenticateToken, isbFilmsCrewController.deleteISBFilmsCrewMember);
+
+// Reorder crew members (admin)
+router.post('/home/crew/reorder', authenticateToken, isbFilmsCrewController.reorderISBFilmsCrew);
+
+// ==================== ISB FILMS NEWS ROUTES (SPECIFIC ROUTES) ====================
+
+// Public routes (published only)
+router.get('/news/articles/public', isbFilmsNewsController.getAllNews);
+
+// Admin routes (all statuses)
+router.get('/news/articles', authenticateToken, isbFilmsNewsController.getAllNewsAdmin);
+router.get('/news/articles/:newsId', authenticateToken, isbFilmsNewsController.getNewsArticle);
+
+// Create news article (admin)
+router.post(
+  '/news/articles',
+  authenticateToken,
+  uploadISBFilmsNewsImage.single('image'),
+  isbFilmsNewsController.createNewsArticle
+);
+
+// Update news article (admin)
+router.put(
+  '/news/articles/:newsId',
+  authenticateToken,
+  uploadISBFilmsNewsImage.single('image'),
+  isbFilmsNewsController.updateNewsArticle
+);
+
+// Delete news article (admin)
+router.delete('/news/articles/:newsId', authenticateToken, isbFilmsNewsController.deleteNewsArticle);
+
+// Reorder news articles (admin)
+router.post('/news/articles/reorder', authenticateToken, isbFilmsNewsController.reorderNews);
+
+// ==================== ISB FILMS PAGE ROUTES (GENERIC - MUST COME LAST) ====================
+
+// Get all ISB Films pages (admin)
+router.get('/', authenticateToken, isbFilmsPageController.getAllISBFilmsPages);
+
+// These generic routes MUST come after all specific routes
+// Get specific page details (admin)
+router.get('/:pageName', authenticateToken, isbFilmsPageController.getISBFilmsPageDetails);
+
+// Save page as draft (admin)
+router.post('/:pageName/save', authenticateToken, isbFilmsPageController.saveISBFilmsPage);
+
+// Publish page and all sections (admin)
+router.post('/:pageName/publish', authenticateToken, isbFilmsPageController.publishISBFilmsPage);
+
+// Update page status (admin)
+router.patch('/:pageName/status', authenticateToken, isbFilmsPageController.updateISBFilmsPageStatus);
+
+// Update page title (admin)
+router.patch('/:pageName/title', authenticateToken, isbFilmsPageController.updateISBFilmsPageTitle);
+
+// Upload background video (admin)
+router.post(
+  '/:pageName/background',
+  authenticateToken,
+  uploadISBFilmsBackgroundVideo.single('video'),
+  isbFilmsPageController.uploadISBFilmsBackgroundVideo
+);
+
+// Generate thumbnail for background video (admin)
+router.post(
+  '/:pageName/generate-thumbnail',
+  authenticateToken,
+  isbFilmsPageController.generateISBFilmsPageThumbnail
+);
 
 module.exports = router;
