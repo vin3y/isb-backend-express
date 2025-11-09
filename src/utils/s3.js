@@ -522,6 +522,44 @@ const deleteFile = async (fileUrl) => {
   }
 };
 
+
+const uploadISBFilmsSustainabilityVowImage = multer({
+  storage: multerS3({
+    s3: s3,
+    bucket: bucketName,
+    contentType: multerS3.AUTO_CONTENT_TYPE,
+    key: (req, file, cb) => {
+      const timestamp = Date.now();
+      const heading = req.body.vow_heading || 'sustainability-vow';
+
+      // Clean the heading for use in filename
+      const cleanHeading = heading
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, '_')
+        .replace(/_+/g, '_')
+        .replace(/^_|_$/g, '')
+        .substring(0, 50); // Limit to 50 characters
+
+      const fileExtension = file.originalname.split('.').pop();
+      const fileName = `isbfilms/sustainability/vows/${timestamp}-${cleanHeading}.${fileExtension}`;
+
+      console.log('🌱 Uploading sustainability vow image:', fileName);
+      cb(null, fileName);
+    },
+  }),
+  fileFilter: (req, file, cb) => {
+    // Only allow image files
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only image files are allowed for sustainability vow images'), false);
+    }
+  },
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB max
+  },
+});
+
 // ============================================================================
 // TEST S3 CONNECTION
 // ============================================================================
@@ -564,7 +602,8 @@ module.exports = {
   uploadISBFilmsNewsImage,
   uploadISBFilmsMoviePoster,           // ⭐ NEW - Dedicated poster upload
   uploadISBFilmsAwardLogo,             // Award logo only
-  uploadISBFilmsMovieWithAwards,       // Combined movie + awards
+  uploadISBFilmsMovieWithAwards,       // Combined movie + awards,
+  uploadISBFilmsSustainabilityVowImage,
 
   // Utilities
   deleteFile,

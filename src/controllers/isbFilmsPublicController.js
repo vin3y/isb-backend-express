@@ -1,6 +1,7 @@
 const db = require('../config/db');
 
 // ==================== GET ALL ISB FILMS PAGES (PUBLISHED ONLY) ====================
+// ==================== GET ALL ISB FILMS PAGES (PUBLISHED ONLY) ====================
 const getAllPublicISBFilmsPages = async (req, res) => {
   try {
     const result = await db.query(
@@ -18,8 +19,9 @@ const getAllPublicISBFilmsPages = async (req, res) => {
          CASE name 
            WHEN 'home' THEN 1 
            WHEN 'filmography' THEN 2 
-           WHEN 'news' THEN 3
-           ELSE 4 
+           WHEN 'sustainability' THEN 3
+           WHEN 'news' THEN 4
+           ELSE 5 
          END, 
          name`
     );
@@ -90,6 +92,26 @@ const getAllPublicISBFilmsPages = async (req, res) => {
             [page.id]
           );
           pageData.years = yearsResult.rows;
+          break;
+
+        case 'sustainability':
+          // Fetch sustainability vows (published only)
+          const vowsResult = await db.query(
+            `SELECT 
+              id,
+              vow_heading,
+              description,
+              image_url,
+              order_index,
+              created_at,
+              updated_at
+             FROM isb_films_sustainability_vows 
+             WHERE page_id = $1 AND status = 'published'
+             ORDER BY order_index, created_at DESC`,
+            [page.id]
+          );
+          pageData.vows = vowsResult.rows;
+          pageData.totalVows = vowsResult.rows.length;
           break;
 
         case 'news':
@@ -239,6 +261,26 @@ const getPublicISBFilmsPageDetails = async (req, res) => {
         page.years = yearsResult.rows;
         break;
 
+      case 'sustainability':
+        // Fetch sustainability vows
+        const vowsResult = await db.query(
+          `SELECT 
+            id,
+            vow_heading,
+            description,
+            image_url,
+            order_index,
+            created_at,
+            updated_at
+           FROM isb_films_sustainability_vows 
+           WHERE page_id = $1 AND status = 'published'
+           ORDER BY order_index, created_at DESC`,
+          [page.id]
+        );
+        page.vows = vowsResult.rows;
+        page.totalVows = vowsResult.rows.length;
+        break;
+
       case 'news':
         // Fetch news articles
         const newsResult = await db.query(
@@ -289,7 +331,6 @@ const getPublicISBFilmsPageDetails = async (req, res) => {
     });
   }
 };
-
 // ==================== GET ALL PAGES BACKGROUND DATA ====================
 const getAllISBFilmsPagesBackground = async (req, res) => {
   try {
@@ -629,6 +670,79 @@ const getPublicCrew = async (req, res) => {
   }
 };
 
+const getPublicSustainabilityVows = async (req, res) => {
+  try {
+    const pageResult = await db.query(
+      "SELECT id FROM isb_films_pages WHERE name = 'sustainability' AND status = 'published'"
+    );
+
+    if (pageResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Sustainability page not found or not published',
+      });
+    }
+
+    const pageId = pageResult.rows[0].id;
+
+    const vowsResult = await db.query(
+      `SELECT 
+        id, 
+        vow_heading, 
+        description, 
+        image_url,
+        order_index,
+        created_at
+       FROM isb_films_sustainability_vows 
+       WHERE page_id = $1 AND status = 'published'
+       ORDER BY order_index, created_at DESC`,
+      [pageId]
+    );
+
+    res.json({
+      success: true,
+      vows: vowsResult.rows,
+      total: vowsResult.rows.length,
+    });
+  } catch (error) {
+    console.error('Error fetching public sustainability vows:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Server error',
+    });
+  }
+};
+
+// ==================== GET SINGLE SUSTAINABILITY VOW (PUBLIC) ====================
+const getPublicSustainabilityVow = async (req, res) => {
+  const { vowId } = req.params;
+
+  try {
+    const result = await db.query(
+      'SELECT * FROM isb_films_sustainability_vows WHERE id = $1 AND status = $2',
+      [vowId, 'published']
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Sustainability vow not found or not published'
+      });
+    }
+
+    res.json({
+      success: true,
+      vow: result.rows[0],
+    });
+  } catch (error) {
+    console.error('Error fetching public sustainability vow:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Server error'
+    });
+  }
+};
+
 module.exports = {
   getAllPublicISBFilmsPages,
   getPublicISBFilmsPageDetails,
@@ -640,4 +754,6 @@ module.exports = {
   getPublicNewsByCategory,
   getPublicNewsArticle,
   getPublicCrew,
+  getPublicSustainabilityVows,
+  getPublicSustainabilityVow,
 };

@@ -8,9 +8,10 @@ const isbFilmsPublicController = require('../controllers/isbFilmsPublicControlle
 // GET /api/public/isbfilms/pages
 router.get('/pages', isbFilmsPublicController.getAllPublicISBFilmsPages);
 
-// Get specific page details (with related data like crew, movies, news)
+// Get specific page details (with related data like crew, movies, news, sustainability)
 // GET /api/public/isbfilms/pages/home
 // GET /api/public/isbfilms/pages/filmography
+// GET /api/public/isbfilms/pages/sustainability
 // GET /api/public/isbfilms/pages/news
 router.get('/pages/:pageName', isbFilmsPublicController.getPublicISBFilmsPageDetails);
 
@@ -41,6 +42,16 @@ router.get('/movies/year/:year', isbFilmsPublicController.getPublicMoviesByYear)
 // Get single movie details with awards
 // GET /api/public/isbfilms/movies/1
 router.get('/movies/:movieId', isbFilmsPublicController.getPublicMovieDetails);
+
+// ==================== SUSTAINABILITY ROUTES ====================
+
+// Get all published sustainability vows
+// GET /api/public/isbfilms/sustainability/vows
+router.get('/sustainability/vows', isbFilmsPublicController.getPublicSustainabilityVows);
+
+// Get single sustainability vow
+// GET /api/public/isbfilms/sustainability/vows/1
+router.get('/sustainability/vows/:vowId', isbFilmsPublicController.getPublicSustainabilityVow);
 
 // ==================== NEWS ROUTES ====================
 

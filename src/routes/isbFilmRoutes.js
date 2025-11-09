@@ -4,11 +4,13 @@ const isbFilmsPageController = require('../controllers/isbFilmsPageController');
 const isbFilmsCrewController = require('../controllers/isbFilmsCrewController');
 const isbFilmsNewsController = require('../controllers/isbFilmsNewsController');
 const isbFilmsMoviesController = require('../controllers/isbFilmsMoviesController');
+const isbFilmsSustainabilityController = require('../controllers/isbFilmsSustainbilityController');
 const {
   uploadISBFilmsBackgroundVideo,
   uploadISBFilmsCrewPhoto,
   uploadISBFilmsNewsImage,
   uploadISBFilmsMovieWithAwards,
+  uploadISBFilmsSustainabilityVowImage
 } = require('../utils/s3');
 const { authenticateToken } = require('../middlewares/auth');
 
@@ -156,5 +158,37 @@ router.post(
   authenticateToken,
   isbFilmsPageController.generateISBFilmsPageThumbnail
 );
+
+// Public routes (published only)
+router.get('/sustainability/vows/public', isbFilmsSustainabilityController.getAllSustainabilityVows);
+
+// Admin routes (all statuses)
+router.get('/sustainability/vows', authenticateToken, isbFilmsSustainabilityController.getAllSustainabilityVowsAdmin);
+
+// Reorder vows
+router.post('/sustainability/vows/reorder', authenticateToken, isbFilmsSustainabilityController.reorderSustainabilityVows);
+
+// Create vow
+router.post(
+  '/sustainability/vows',
+  authenticateToken,
+  uploadISBFilmsSustainabilityVowImage.single('image'),
+  isbFilmsSustainabilityController.createSustainabilityVow
+);
+
+// Get single vow
+router.get('/sustainability/vows/:vowId', authenticateToken, isbFilmsSustainabilityController.getSustainabilityVow);
+
+// Update vow
+router.put(
+  '/sustainability/vows/:vowId',
+  authenticateToken,
+  uploadISBFilmsSustainabilityVowImage.single('image'),
+  isbFilmsSustainabilityController.updateSustainabilityVow
+);
+
+// Delete vow
+router.delete('/sustainability/vows/:vowId', authenticateToken, isbFilmsSustainabilityController.deleteSustainabilityVow);
+
 
 module.exports = router;
