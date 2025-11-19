@@ -1,5 +1,26 @@
 const db = require('../config/db');
 const { activityLoggers } = require('../middlewares/activityLogger');
+const nodemailer = require('nodemailer');
+
+// Configure SMTP transporter
+const transporter = nodemailer.createTransport({
+  host: 'isbtv-es.mail.protection.outlook.com',
+  port: 25,
+  secure: false, // TLS is optional
+  tls: {
+    rejectUnauthorized: false, // Accept self-signed certificates
+  },
+  // No authentication required
+});
+
+// Verify transporter configuration on startup
+transporter.verify((error, success) => {
+  if (error) {
+    console.error('SMTP configuration error:', error);
+  } else {
+    console.log('SMTP server is ready to send emails');
+  }
+});
 
 // Get all pages with complete details and their sections (only published pages)
 const getAllPublicPages = async (req, res) => {
@@ -739,6 +760,7 @@ const submitContactMessage = async (req, res) => {
     const ipAddress = req.ip || req.connection.remoteAddress || req.headers['x-forwarded-for'];
     const userAgent = req.headers['user-agent'];
 
+    // Insert into database
     const result = await db.query(
       `INSERT INTO contact_messages 
        (name, email, subject, message, ip_address, user_agent)
@@ -751,6 +773,74 @@ const submitContactMessage = async (req, res) => {
 
     // Log the message submission
     await activityLoggers.contact.logMessageSubmission(newMessage, ipAddress, userAgent);
+
+    // Send email via SMTP
+    try {
+      const mailOptions = {
+        from: 'webform@isbtv.es',
+        to: 'info@isbtv.es',
+        subject: `Contact Form: ${subject}`,
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <h2 style="color: #333; border-bottom: 2px solid #007bff; padding-bottom: 10px;">
+              New Contact Form Submission
+            </h2>
+            
+            <div style="background-color: #f8f9fa; padding: 20px; border-radius: 5px; margin: 20px 0;">
+              <p style="margin: 10px 0;"><strong>Name:</strong> ${name}</p>
+              <p style="margin: 10px 0;"><strong>Email:</strong> ${email}</p>
+              <p style="margin: 10px 0;"><strong>Subject:</strong> ${subject}</p>
+            </div>
+            
+            <div style="margin: 20px 0;">
+              <h3 style="color: #555;">Message:</h3>
+              <div style="background-color: #ffffff; padding: 15px; border-left: 4px solid #007bff; white-space: pre-wrap;">
+${message}
+              </div>
+            </div>
+            
+            <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; font-size: 12px; color: #888;">
+              <p><strong>Submitted at:</strong> ${new Date(newMessage.created_at).toLocaleString('en-US', {
+          timeZone: 'Europe/Madrid',
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit'
+        })}</p>
+              <p><strong>IP Address:</strong> ${ipAddress || 'Unknown'}</p>
+              <p><strong>User Agent:</strong> ${userAgent || 'Unknown'}</p>
+              <p><strong>Message ID:</strong> ${newMessage.id}</p>
+            </div>
+          </div>
+        `,
+        text: `
+New Contact Form Submission
+
+Name: ${name}
+Email: ${email}
+Subject: ${subject}
+
+Message:
+${message}
+
+---
+Submitted at: ${new Date(newMessage.created_at).toLocaleString('en-US', { timeZone: 'Europe/Madrid' })}
+IP Address: ${ipAddress || 'Unknown'}
+User Agent: ${userAgent || 'Unknown'}
+Message ID: ${newMessage.id}
+        `,
+      };
+
+      await transporter.sendMail(mailOptions);
+      console.log('Contact form email sent successfully to info@isbtv.es');
+    } catch (emailError) {
+      // Log email error but don't fail the request
+      // The message is already saved in the database
+      console.error('Error sending contact form email:', emailError);
+      // You might want to implement a retry mechanism or notification system here
+    }
 
     res.status(201).json({
       success: true,
