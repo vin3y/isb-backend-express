@@ -2,6 +2,22 @@
 const db = require('../config/db'); // Adjust the path as necessary
 require('dotenv').config();
 
+
+async function logAction(req, logData) {
+  return await logActivity(
+    req.user ? req.user.id : null,
+    logData.actionType,
+    logData.entityType,
+    logData.entityId || null,
+    logData.entityName || null,
+    logData.description || '',
+    logData.oldData || null,
+    logData.newData || null,
+    req.ip,
+    req.get('User-Agent')
+  );
+}
+
 // Activity logging utility function
 async function logActivity(
   userId,
@@ -45,6 +61,8 @@ async function logActivity(
     return null;
   }
 }
+
+
 
 // Enhanced middleware factory for different entity types
 function createActivityLogger(entityType) {
@@ -476,6 +494,7 @@ function getContactChangedFields(oldData, newData) {
 
 // Pre-defined loggers for your entities
 const activityLoggers = {
+  logAction,
   page: createActivityLogger('page'),
   award: createActivityLogger('award'),
   teamMember: createActivityLogger('team_member'),
@@ -486,6 +505,8 @@ const activityLoggers = {
   standout: createActivityLogger('standout'),
   valuedPartner: createActivityLogger('valued_partner'),
   aboutSection: createActivityLogger('about_section'),
+
+  user: createActivityLogger("user"),
 
   // Contact logger
   contact: contact,
@@ -606,6 +627,7 @@ module.exports = {
   logActivity,
   createActivityLogger,
   activityLoggers,
+  logAction,
   getPageNameFromEntityType,
   formatEntityType,
   formatActionType,

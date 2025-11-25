@@ -16,6 +16,8 @@ const isbFilmsPublicRoutes = require('./isbFilmsPublicRoutes');
 
 const router = express.Router();
 
+console.log("🔍 Loading routes...");
+
 router.use('/auth', authRoutes);
 router.use('/pages', pageRoutes);
 router.use('/about', aboutRoutes);

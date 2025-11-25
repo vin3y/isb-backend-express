@@ -3,56 +3,55 @@ const jwt = require('jsonwebtoken');
 const db = require('../config/db');
 const { activityLoggers } = require('../middlewares/activityLogger');
 
-// Generate access token (2 hours)
+/* ============================================================
+   TOKEN GENERATORS
+============================================================ */
+
 const generateAccessToken = (user) => {
   return jwt.sign(
-    { id: user.id, email: user.email },
+    { id: user.id, email: user.email, role: user.role },
     process.env.JWT_SECRET_KEY || 'your-secret-key',
     { expiresIn: '2h' }
   );
 };
 
-// Generate refresh token (7 days)
 const generateRefreshToken = (user) => {
   return jwt.sign(
-    { id: user.id, email: user.email, type: 'refresh' },
+    { id: user.id, email: user.email, role: user.role, type: 'refresh' },
     process.env.REFRESH_SECRET_KEY || 'your-refresh-secret-key',
     { expiresIn: '7d' }
   );
 };
 
-// Helper function to convert UTC to local timezone for display
-const formatDateForTimezone = (utcDate, timezone = 'UTC') => {
-  try {
-    return new Date(utcDate).toLocaleString('en-US', {
-      timeZone: timezone,
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-      hour12: false,
-    });
-  } catch (error) {
-    console.error('Timezone conversion error:', error);
-    return new Date(utcDate).toISOString();
-  }
-};
+/* ============================================================
+   DATE/TIME HELPERS
+============================================================ */
 
-// Helper function to get current UTC timestamp
-const getCurrentUTC = () => {
-  return new Date().toISOString();
-};
+const getCurrentUTC = () => new Date().toISOString();
 
-// Helper function to add days to current UTC date
 const addDaysToUTC = (days) => {
   const date = new Date();
   date.setUTCDate(date.getUTCDate() + days);
   return date.toISOString();
 };
 
-// Helper function to log login attempts
+const formatDateForTimezone = (utcDate, timezone = 'UTC') => {
+  return new Date(utcDate).toLocaleString('en-US', {
+    timeZone: timezone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  });
+};
+
+/* ============================================================
+   LOGIN HISTORY LOGGER
+============================================================ */
+
 const logLoginAttempt = async (userId, ipAddress, userAgent, success) => {
   try {
     await db.query(
@@ -64,329 +63,274 @@ const logLoginAttempt = async (userId, ipAddress, userAgent, success) => {
   }
 };
 
-// Login controller
+/* ============================================================
+   LOGIN CONTROLLER
+============================================================ */
+
 const login = async (req, res) => {
-  const { email, password } = req.body;
+  const { email, username, password } = req.body;
+  const identifier = email || username;
   const clientIp = req.ip || req.connection.remoteAddress;
   const userAgent = req.headers['user-agent'];
-  const userTimezone = req.headers['x-timezone'] || 'UTC'; // Get timezone from header
+  const userTimezone = req.headers['x-timezone'] || 'UTC';
 
   try {
-    // Check if user exists
     const userResult = await db.query(
-      'SELECT id, email, password_hash, password_expires_at, password_updated_at FROM users WHERE email = $1',
-      [email]
+      `SELECT id, email, role, password_hash, password_expires_at, password_updated_at
+       FROM users
+       WHERE email = $1 OR email = $2`,
+      [identifier, identifier + '@local']
     );
 
+    // USER NOT FOUND
     if (userResult.rows.length === 0) {
-      await logLoginAttempt(null, clientIp, userAgent, false);
-      // Log failed login attempt with activity logger
-      const mockReq = { ip: clientIp, get: () => userAgent, user: null };
-      await activityLoggers.auth.logLogin(mockReq, false, email || 'unknown', 'User not found');
-      return res.status(401).json({ error: 'Invalid credentials' });
+      await activityLoggers.auth.logLogin(req, false, identifier, "User not found");
+      return res.status(401).json({ error: "Invalid credentials" });
     }
 
     const user = userResult.rows[0];
 
-    // Verify password
     const validPassword = await bcrypt.compare(password, user.password_hash);
+
+    // WRONG PASSWORD
     if (!validPassword) {
-      await logLoginAttempt(user.id, clientIp, userAgent, false);
-      // Log failed login attempt with activity logger
-      const mockReq = {
-        ip: clientIp,
-        get: () => userAgent,
-        user: { id: user.id, email: user.email },
-      };
-      await activityLoggers.auth.logLogin(mockReq, false, email, 'Invalid password');
-      return res.status(401).json({ error: 'Invalid credentials' });
+      await activityLoggers.auth.logLogin(req, false, user.email, "Incorrect password");
+      return res.status(401).json({ error: "Invalid credentials" });
     }
 
-    // Check if password has expired (compare UTC dates)
-    const passwordExpiresAt = new Date(user.password_expires_at);
-    const currentDate = new Date();
-    const passwordExpired = passwordExpiresAt < currentDate;
+    // PASSWORD EXPIRED (NOT for superuser)
+    if (user.role !== "superuser") {
+      const expiresAt = new Date(user.password_expires_at);
+      const now = new Date();
 
-    // Calculate days until expiry
-    const daysUntilExpiry = Math.floor(
-      (passwordExpiresAt.getTime() - currentDate.getTime()) / (1000 * 60 * 60 * 24)
-    );
-
-    if (passwordExpired) {
-      await logLoginAttempt(user.id, clientIp, userAgent, false);
-      // Log failed login attempt due to expired password
-      const mockReq = {
-        ip: clientIp,
-        get: () => userAgent,
-        user: { id: user.id, email: user.email },
-      };
-      await activityLoggers.auth.logLogin(mockReq, false, email, 'Password expired');
-      return res.status(403).json({
-        error: 'Password has expired. Please reset your password.',
-        passwordExpired: true,
-        requiresPasswordReset: true,
-      });
+      if (expiresAt < now) {
+        await activityLoggers.auth.logLogin(req, false, user.email, "Password expired");
+        return res.status(403).json({
+          error: "Password has expired. Please reset your password.",
+          passwordExpired: true
+        });
+      }
     }
 
-    // Generate tokens
+    // SUCCESSFUL LOGIN → LOG IT
+    await activityLoggers.auth.logLogin(req, true, user.email, null);
+
+    // Generate access + refresh tokens
     const accessToken = generateAccessToken(user);
     const refreshToken = generateRefreshToken(user);
 
-    // Store refresh token in database with UTC expiration
-    const refreshTokenExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+    const refreshExpiryUTC = addDaysToUTC(7);
+
     await db.query(
-      'INSERT INTO refresh_tokens (user_id, token, expires_at, created_at) VALUES ($1, $2, $3, $4)',
-      [user.id, refreshToken, refreshTokenExpiry, getCurrentUTC()]
+      "INSERT INTO refresh_tokens (user_id, token, expires_at, created_at) VALUES ($1, $2, $3, $4)",
+      [user.id, refreshToken, refreshExpiryUTC, new Date().toISOString()]
     );
 
-    // Log successful login
-    await logLoginAttempt(user.id, clientIp, userAgent, true);
-
-    // Log successful login with activity logger
-    const mockReq = {
-      ip: clientIp,
-      get: () => userAgent,
-      user: { id: user.id, email: user.email },
-    };
-    await activityLoggers.auth.logLogin(mockReq, true, email);
-
-    // Return response with timezone-aware dates for display
-    res.json({
+    return res.json({
       accessToken,
       refreshToken,
       user: {
         id: user.id,
         email: user.email,
+        role: user.role,
       },
       passwordInfo: {
-        daysLeft: daysUntilExpiry, // For compatibility
-        expiresIn: daysUntilExpiry,
-        expiresAt: user.password_expires_at, // Keep as UTC for frontend to handle
-        lastUpdate: user.password_updated_at, // Keep as UTC
-        lastUpdated: user.password_updated_at, // Alternative naming
-        requiresChange: daysUntilExpiry <= 7,
-        // Add timezone-formatted dates for display
+        expiresAt: user.password_expires_at,
+        lastUpdate: user.password_updated_at,
         expiresAtFormatted: formatDateForTimezone(user.password_expires_at, userTimezone),
         lastUpdateFormatted: formatDateForTimezone(user.password_updated_at, userTimezone),
       },
-      serverTime: {
-        utc: getCurrentUTC(),
-        formatted: formatDateForTimezone(getCurrentUTC(), userTimezone),
-        timezone: userTimezone,
-      },
     });
-  } catch (error) {
-    console.error('Login error:', error);
-    res.status(500).json({ error: 'Server error' });
+
+  } catch (err) {
+    console.error("Login error:", err);
+    return res.status(500).json({ error: "Server error" });
   }
 };
 
-// Refresh token controller
+
+
+/* ============================================================
+   REFRESH TOKEN
+============================================================ */
+
 const refreshToken = async (req, res) => {
   const { refreshToken } = req.body;
-  const userTimezone = req.headers['x-timezone'] || 'UTC';
+  const timezone = req.headers["x-timezone"] || "UTC";
 
   if (!refreshToken) {
-    return res.status(401).json({ error: 'Refresh token required' });
+    return res.status(401).json({ error: "Refresh token required" });
   }
 
   try {
-    // Verify refresh token
     const decoded = jwt.verify(
       refreshToken,
-      process.env.JWT_REFRESH_SECRET || 'your-refresh-secret-key'
+      process.env.REFRESH_SECRET_KEY || "your-refresh-secret-key"
     );
 
-    // Check if refresh token exists in database and is valid (UTC comparison)
     const tokenResult = await db.query(
-      'SELECT * FROM refresh_tokens WHERE token = $1 AND user_id = $2 AND expires_at > $3 AND revoked = false',
-      [refreshToken, decoded.id, getCurrentUTC()]
+      `SELECT * FROM refresh_tokens 
+       WHERE token=$1 AND user_id=$2 AND expires_at > $3 AND revoked=false`,
+      [refreshToken, decoded.id, new Date().toISOString()]
     );
 
     if (tokenResult.rows.length === 0) {
-      return res.status(403).json({ error: 'Invalid refresh token' });
+      await activityLoggers.auth.logLogin(req, false, decoded.email, "Invalid refresh token");
+      return res.status(403).json({ error: "Invalid refresh token" });
     }
 
-    // Get user info
     const userResult = await db.query(
-      'SELECT id, email, password_expires_at, password_updated_at FROM users WHERE id = $1',
+      "SELECT id, email, role, password_expires_at, password_updated_at FROM users WHERE id=$1",
       [decoded.id]
     );
 
-    if (userResult.rows.length === 0) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-
     const user = userResult.rows[0];
-
-    // Generate new access token
     const newAccessToken = generateAccessToken(user);
 
-    // Calculate password expiry info
-    const passwordExpiresAt = new Date(user.password_expires_at);
-    const currentDate = new Date();
-    const daysUntilExpiry = Math.floor(
-      (passwordExpiresAt.getTime() - currentDate.getTime()) / (1000 * 60 * 60 * 24)
-    );
-
-    res.json({
+    return res.json({
       accessToken: newAccessToken,
       passwordInfo: {
-        daysLeft: daysUntilExpiry,
-        expiresIn: daysUntilExpiry,
         expiresAt: user.password_expires_at,
         lastUpdate: user.password_updated_at,
-        lastUpdated: user.password_updated_at,
-        requiresChange: daysUntilExpiry <= 7,
-        // Add timezone-formatted dates
-        expiresAtFormatted: formatDateForTimezone(user.password_expires_at, userTimezone),
-        lastUpdateFormatted: formatDateForTimezone(user.password_updated_at, userTimezone),
-      },
-      serverTime: {
-        utc: getCurrentUTC(),
-        formatted: formatDateForTimezone(getCurrentUTC(), userTimezone),
-        timezone: userTimezone,
+        expiresAtFormatted: formatDateForTimezone(user.password_expires_at, timezone),
+        lastUpdateFormatted: formatDateForTimezone(user.password_updated_at, timezone),
       },
     });
-  } catch (error) {
-    if (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError') {
-      return res.status(403).json({ error: 'Invalid or expired refresh token' });
-    }
-    console.error('Refresh token error:', error);
-    res.status(500).json({ error: 'Server error' });
+
+  } catch (err) {
+    await activityLoggers.auth.logLogin(req, false, "UNKNOWN", "Expired refresh token");
+    return res.status(403).json({ error: "Invalid or expired refresh token" });
   }
 };
 
-// Logout controller
+
+/* ============================================================
+   LOGOUT
+============================================================ */
+
 const logout = async (req, res) => {
   const { refreshToken } = req.body;
 
-  if (!refreshToken) {
-    return res.status(400).json({ error: 'Refresh token is required' });
-  }
-
-  if (refreshToken) {
-    try {
-      // Update with UTC timestamp
-      await db.query('UPDATE refresh_tokens SET revoked = true, updated_at = $1 WHERE token = $2', [
-        getCurrentUTC(),
-        refreshToken,
-      ]);
-    } catch (error) {
-      console.error('Error revoking refresh token:', error);
+  try {
+    if (refreshToken) {
+      await db.query(
+        "UPDATE refresh_tokens SET revoked = true, updated_at = $1 WHERE token = $2",
+        [new Date().toISOString(), refreshToken]
+      );
     }
-  }
 
-  // Log the logout activity
-  if (req.user) {
-    await activityLoggers.auth.logLogout(req, req.user.email);
-  }
+    if (req.user) {
+      await activityLoggers.auth.logLogout(req, req.user.email);
+    }
 
-  res.json({ message: 'Logged out successfully' });
+    return res.json({ message: "Logged out successfully" });
+  } catch (error) {
+    console.error("Logout error:", error);
+    return res.status(500).json({ error: "Server error" });
+  }
 };
 
-// Reset password controller
+
+/* ============================================================
+   USER RESET OWN PASSWORD
+============================================================ */
+
 const resetPassword = async (req, res) => {
   const { currentPassword, newPassword } = req.body;
   const userId = req.user.id;
-  const userTimezone = req.headers['x-timezone'] || 'UTC';
+  const email = req.user.email;
 
   try {
-    // Get current password hash
-    const userResult = await db.query('SELECT password_hash FROM users WHERE id = $1', [userId]);
-    if (userResult.rows.length === 0) {
-      return res.status(404).json({ error: 'User not found' });
+    const userResult = await db.query(
+      "SELECT password_hash, role FROM users WHERE id = $1",
+      [userId]
+    );
+
+    const user = userResult.rows[0];
+
+    // 🔐 SUPERUSER — does NOT need old password
+    if (user.role === "superuser") {
+      const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+      await db.query(
+        `UPDATE users SET password_hash=$1, password_updated_at=$2, password_expires_at=$3 WHERE id=$4`,
+        [hashedPassword, new Date().toISOString(), "9999-12-31 23:59:59", userId]
+      );
+
+      await activityLoggers.auth.logPasswordReset(req, email);
+
+      return res.json({ message: "Superuser password updated successfully" });
     }
 
-    // Verify current password
-    const validPassword = await bcrypt.compare(currentPassword, userResult.rows[0].password_hash);
+    // NORMAL USER
+    const validPassword = await bcrypt.compare(currentPassword, user.password_hash);
+
     if (!validPassword) {
-      return res.status(401).json({ error: 'Current password is incorrect' });
+      return res.status(401).json({ error: "Current password incorrect" });
     }
 
-    // Check password requirements
     if (newPassword.length < 8) {
-      return res.status(400).json({ error: 'New password must be at least 8 characters long' });
+      return res.status(400).json({ error: "Password must be at least 8 characters" });
     }
 
-    // Check if new password is same as current
-    const samePassword = await bcrypt.compare(newPassword, userResult.rows[0].password_hash);
-    if (samePassword) {
-      return res
-        .status(400)
-        .json({ error: 'New password must be different from current password' });
-    }
-
-    // Hash new password
     const hashedPassword = await bcrypt.hash(newPassword, 10);
 
-    // Update password and reset expiry (all in UTC)
-    const currentUTC = getCurrentUTC();
-    const newExpiryUTC = addDaysToUTC(60); // 60 days from now
-
     await db.query(
-      `UPDATE users
-       SET password_hash = $1,
-           password_updated_at = $2,
-           password_expires_at = $3
-       WHERE id = $4`,
-      [hashedPassword, currentUTC, newExpiryUTC, userId]
+      `UPDATE users SET password_hash=$1, password_updated_at=$2, password_expires_at=$3 WHERE id=$4`,
+      [hashedPassword, new Date().toISOString(), addDaysToUTC(60), userId]
     );
 
-    // Revoke all existing refresh tokens for this user
-    await db.query('UPDATE refresh_tokens SET revoked = true, updated_at = $1 WHERE user_id = $2', [
-      currentUTC,
-      userId,
-    ]);
-
-    // Log the password reset activity
-    await activityLoggers.auth.logPasswordReset(req, req.user.email);
+    await activityLoggers.auth.logPasswordReset(req, email);
 
     res.json({
-      message: 'Password reset successfully',
+      message: "Password reset successfully",
       requiresRelogin: true,
-      passwordInfo: {
-        updatedAt: currentUTC,
-        expiresAt: newExpiryUTC,
-        updatedAtFormatted: formatDateForTimezone(currentUTC, userTimezone),
-        expiresAtFormatted: formatDateForTimezone(newExpiryUTC, userTimezone),
-      },
     });
+
   } catch (error) {
-    console.error('Password reset error:', error);
-    res.status(500).json({ error: 'Server error' });
+    console.error("Reset password error:", error);
+    return res.status(500).json({ error: "Server error" });
   }
 };
 
-// Get login history controller
-const getLoginHistory = async (req, res) => {
-  const userTimezone = req.headers['x-timezone'] || 'UTC';
+
+/* ============================================================
+   ADMIN RESET ANY USER PASSWORD (SUPERUSER ONLY)
+============================================================ */
+
+const adminResetPassword = async (req, res) => {
+  const { email, newPassword } = req.body;
+
+  if (req.user.role !== "superuser") {
+    return res.status(403).json({ error: "Only superuser can reset passwords" });
+  }
 
   try {
-    const result = await db.query(
-      `SELECT lh.*, u.email
-       FROM login_history lh
-       JOIN users u ON lh.user_id = u.id
-       ORDER BY lh.login_time DESC
-       LIMIT 100`
+    const userResult = await db.query("SELECT id FROM users WHERE email=$1", [email]);
+
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    await db.query(
+      `UPDATE users SET password_hash=$1, password_updated_at=$2, password_expires_at=$3 WHERE email=$4`,
+      [hashedPassword, new Date().toISOString(), addDaysToUTC(60), email]
     );
 
-    // Add time_ago and formatted time to each record
-    const loginHistory = result.rows.map((row) => ({
-      ...row,
-      time_ago: getTimeAgo(new Date(row.login_time)),
-      login_time_formatted: formatDateForTimezone(row.login_time, userTimezone),
-      login_time_utc: row.login_time, // Keep original UTC
-    }));
+    await activityLoggers.auth.logPasswordReset(req, email);
 
-    res.json(loginHistory);
+    res.json({ message: "Password reset successfully" });
+
   } catch (error) {
-    console.error('Error fetching login history:', error);
-    res.status(500).json({ error: 'Server error' });
+    console.error("Admin password reset error:", error);
+    res.status(500).json({ error: "Server error" });
   }
 };
 
-// Get password status controller
+
+
 const getPasswordStatus = async (req, res) => {
   const userTimezone = req.headers['x-timezone'] || 'UTC';
 
@@ -401,25 +345,18 @@ const getPasswordStatus = async (req, res) => {
     }
 
     const user = result.rows[0];
-    const passwordExpiresAt = new Date(user.password_expires_at);
-    const currentDate = new Date();
-    const daysUntilExpiry = Math.floor(
-      (passwordExpiresAt.getTime() - currentDate.getTime()) / (1000 * 60 * 60 * 24)
-    );
+
+    const expiresAt = new Date(user.password_expires_at);
+    const diff = expiresAt - new Date();
+    const daysUntilExpiry = Math.floor(diff / (1000 * 60 * 60 * 24));
 
     res.json({
-      passwordUpdatedAt: user.password_updated_at,
-      passwordExpiresAt: user.password_expires_at,
-      passwordUpdatedAtFormatted: formatDateForTimezone(user.password_updated_at, userTimezone),
-      passwordExpiresAtFormatted: formatDateForTimezone(user.password_expires_at, userTimezone),
+      updatedAt: user.password_updated_at,
+      expiresAt: user.password_expires_at,
+      updatedAtFormatted: formatDateForTimezone(user.password_updated_at, userTimezone),
+      expiresAtFormatted: formatDateForTimezone(user.password_expires_at, userTimezone),
       daysUntilExpiry,
       expired: daysUntilExpiry < 0,
-      requiresChange: daysUntilExpiry <= 7,
-      timezone: userTimezone,
-      serverTime: {
-        utc: getCurrentUTC(),
-        formatted: formatDateForTimezone(getCurrentUTC(), userTimezone),
-      },
     });
   } catch (error) {
     console.error('Error fetching password status:', error);
@@ -427,74 +364,42 @@ const getPasswordStatus = async (req, res) => {
   }
 };
 
-
-const adminResetPassword = async (req, res) => {
-  const { email, newPassword } = req.body;
-
-  if (!email || !newPassword) {
-    return res.status(400).json({ error: 'Email and new password are required' });
-  }
+const getLoginHistory = async (req, res) => {
+  const userTimezone = req.headers['x-timezone'] || 'UTC';
 
   try {
-    // Check if user exists
-    const userResult = await db.query('SELECT id FROM users WHERE email = $1', [email]);
-
-    if (userResult.rows.length === 0) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-
-    // Hash new password
-    const hashedPassword = await bcrypt.hash(newPassword, 10);
-
-    // Update password and reset expiry
-    const currentUTC = getCurrentUTC();
-    const newExpiryUTC = addDaysToUTC(60); // 60 days from now
-
-    await db.query(
-      `UPDATE users
-       SET password_hash = $1,
-           password_updated_at = $2,
-           password_expires_at = $3
-       WHERE email = $4`,
-      [hashedPassword, currentUTC, newExpiryUTC, email]
+    const result = await db.query(
+      `SELECT lh.*, u.email
+       FROM login_history lh
+       JOIN users u ON lh.user_id = u.id
+       ORDER BY lh.login_time DESC
+       LIMIT 100`
     );
 
-    // Revoke all existing refresh tokens
-    await db.query(
-      'UPDATE refresh_tokens SET revoked = true WHERE user_id = $1',
-      [userResult.rows[0].id]
-    );
+    const loginHistory = result.rows.map((row) => ({
+      ...row,
+      login_time_formatted: formatDateForTimezone(row.login_time, userTimezone),
+      login_time_utc: row.login_time,
+    }));
 
-    res.json({
-      message: 'Password reset successfully',
-      email: email,
-      expiresAt: newExpiryUTC,
-    });
+    res.json(loginHistory);
   } catch (error) {
-    console.error('Admin password reset error:', error);
+    console.error('Error fetching login history:', error);
     res.status(500).json({ error: 'Server error' });
   }
 };
 
-// Helper function to calculate time ago
-function getTimeAgo(date) {
-  const now = new Date();
-  const diffInSeconds = Math.floor((now - date) / 1000);
 
-  if (diffInSeconds < 60) return `${diffInSeconds} seconds ago`;
-  if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)} minutes ago`;
-  if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)} hours ago`;
-  if (diffInSeconds < 604800) return `${Math.floor(diffInSeconds / 86400)} days ago`;
-
-  return date.toLocaleDateString();
-}
+/* ============================================================
+   EXPORT CONTROLLERS
+============================================================ */
 
 module.exports = {
   login,
   refreshToken,
   logout,
   resetPassword,
+  adminResetPassword,
   getLoginHistory,
-  getPasswordStatus,
-  adminResetPassword
+  getPasswordStatus
 };
