@@ -109,6 +109,27 @@ const getAllPublicPages = async (req, res) => {
             pageData.sections[section.section_type] = section.content;
           });
           pageData.team = teamResult.rows;
+
+          // Events (NEW)
+          const aboutEventsResult = await db.query(
+            `
+    SELECT 
+      id,
+      event_title,
+      event_year,
+      event_video_link,
+      order_index,
+      created_at
+    FROM about_events
+    WHERE page_id = $1
+    ORDER BY event_year DESC, order_index ASC
+  `,
+            [page.id]
+          );
+
+          pageData.events = aboutEventsResult.rows;
+          pageData.totalEvents = aboutEventsResult.rows.length;
+
           break;
 
         case 'services':
@@ -399,7 +420,25 @@ const getPublicPageDetails = async (req, res) => {
           page.sections[section.section_type] = section.content;
         });
         page.team = teamResult.rows;
-        break;
+
+        const aboutEventsResult = await db.query(
+          `
+      SELECT 
+          id,
+          event_title,
+          event_year,
+          event_video_link,
+          order_index,
+          created_at
+      FROM about_events
+      WHERE page_id = $1
+      ORDER BY event_year DESC, order_index ASC
+  `,
+          [page.id]
+        );
+
+        page.events = aboutEventsResult.rows;
+        page.totalEvents = aboutEventsResult.rows.length;
 
       case 'services':
         // Fetch key offerings for services page
@@ -800,15 +839,18 @@ ${message}
             </div>
             
             <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; font-size: 12px; color: #888;">
-              <p><strong>Submitted at:</strong> ${new Date(newMessage.created_at).toLocaleString('en-US', {
-          timeZone: 'Europe/Madrid',
-          year: 'numeric',
-          month: 'long',
-          day: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit',
-          second: '2-digit'
-        })}</p>
+              <p><strong>Submitted at:</strong> ${new Date(newMessage.created_at).toLocaleString(
+                'en-US',
+                {
+                  timeZone: 'Europe/Madrid',
+                  year: 'numeric',
+                  month: 'long',
+                  day: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                  second: '2-digit',
+                }
+              )}</p>
               <p><strong>IP Address:</strong> ${ipAddress || 'Unknown'}</p>
               <p><strong>User Agent:</strong> ${userAgent || 'Unknown'}</p>
               <p><strong>Message ID:</strong> ${newMessage.id}</p>
@@ -826,7 +868,9 @@ Message:
 ${message}
 
 ---
-Submitted at: ${new Date(newMessage.created_at).toLocaleString('en-US', { timeZone: 'Europe/Madrid' })}
+Submitted at: ${new Date(newMessage.created_at).toLocaleString('en-US', {
+          timeZone: 'Europe/Madrid',
+        })}
 IP Address: ${ipAddress || 'Unknown'}
 User Agent: ${userAgent || 'Unknown'}
 Message ID: ${newMessage.id}

@@ -7,7 +7,7 @@ AWS.config.update({
   accessKeyId: process.env.AWS_ACCESS_KEY_ID,
   secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
   region: process.env.AWS_REGION || 'eu-north-1',
-  signatureVersion: 'v4'
+  signatureVersion: 'v4',
 });
 
 const s3 = new AWS.S3({
@@ -15,7 +15,7 @@ const s3 = new AWS.S3({
   accessKeyId: process.env.AWS_ACCESS_KEY_ID,
   secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
   region: process.env.AWS_REGION || 'eu-north-1',
-  signatureVersion: 'v4'
+  signatureVersion: 'v4',
 });
 
 const bucketName = process.env.AWS_BUCKETNAME;
@@ -311,9 +311,7 @@ const uploadISBFilmsBackgroundVideo = multer({
     key: (req, file, cb) => {
       const pageName = req.params.pageName || 'home';
       const timestamp = Date.now();
-      const cleanPageName = pageName
-        .toLowerCase()
-        .replace(/[^a-z0-9]/g, '_');
+      const cleanPageName = pageName.toLowerCase().replace(/[^a-z0-9]/g, '_');
       const fileExtension = file.originalname.split('.').pop();
       const fileName = `isbfilms/${cleanPageName}/background/${timestamp}-${cleanPageName}.${fileExtension}`;
       cb(null, fileName);
@@ -511,7 +509,9 @@ const deleteFile = async (fileUrl) => {
     let key;
     const bucketUrl1 = `https://${bucketName}.s3.amazonaws.com/`;
     const bucketUrl2 = `https://s3.amazonaws.com/${bucketName}/`;
-    const bucketUrl3 = `https://${bucketName}.s3.${process.env.AWS_REGION || 'eu-north-1'}.amazonaws.com/`;
+    const bucketUrl3 = `https://${bucketName}.s3.${
+      process.env.AWS_REGION || 'eu-north-1'
+    }.amazonaws.com/`;
 
     if (fileUrl.includes(bucketUrl1)) {
       key = fileUrl.replace(bucketUrl1, '');
@@ -535,7 +535,6 @@ const deleteFile = async (fileUrl) => {
     console.error('❌ Error deleting file from S3:', error.message);
   }
 };
-
 
 const uploadISBFilmsSustainabilityVowImage = multer({
   storage: multerS3({
@@ -572,6 +571,49 @@ const uploadISBFilmsSustainabilityVowImage = multer({
   },
   limits: {
     fileSize: 10 * 1024 * 1024, // 10MB max
+  },
+});
+
+//adding event upllaod video
+
+// ============================================================================
+// ABOUT PAGE - EVENT VIDEO UPLOAD ⭐ NEW
+// ============================================================================
+
+const uploadAboutEventVideo = multer({
+  storage: multerS3({
+    s3: s3,
+    bucket: bucketName,
+    acl: 'public-read', // public video link
+    contentType: multerS3.AUTO_CONTENT_TYPE, // auto detect mime
+    key: (req, file, cb) => {
+      const timestamp = Date.now();
+      const title = req.body.event_title || 'event-video';
+
+      // Clean title for safe filenames
+      const cleanTitle = title
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, '_')
+        .replace(/_+/g, '_')
+        .replace(/^_|_$/g, '')
+        .substring(0, 50);
+
+      const ext = file.originalname.split('.').pop();
+      const fileName = `about/events/${timestamp}-${cleanTitle}.${ext}`;
+
+      console.log('🎥 Uploading About Event Video →', fileName);
+      cb(null, fileName);
+    },
+  }),
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith('video/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only video files are allowed for event uploads'), false);
+    }
+  },
+  limits: {
+    fileSize: 100 * 1024 * 1024, // 100 MB
   },
 });
 
@@ -615,10 +657,11 @@ module.exports = {
   uploadISBFilmsCrewPhoto,
   uploadISBFilmsBackgroundVideo,
   uploadISBFilmsNewsImage,
-  uploadISBFilmsMoviePoster,           // ⭐ NEW - Dedicated poster upload
-  uploadISBFilmsAwardLogo,             // Award logo only
-  uploadISBFilmsMovieWithAwards,       // Combined movie + awards,
+  uploadISBFilmsMoviePoster, // ⭐ NEW - Dedicated poster upload
+  uploadISBFilmsAwardLogo, // Award logo only
+  uploadISBFilmsMovieWithAwards, // Combined movie + awards,
   uploadISBFilmsSustainabilityVowImage,
+  uploadAboutEventVideo, //new about event video upload
 
   // Utilities
   deleteFile,

@@ -5,53 +5,81 @@ const { activityLoggers } = require('../middlewares/activityLogger');
 
 const getAboutPageData = async (req, res) => {
   try {
-    // Get about page ID
-    const pageResult = await db.query(
-      'SELECT id, name, title, background_video_url, background_thumbnail_url, status FROM pages WHERE name = $1',
-      ['about']
-    );
+    // 1. Get the About page ID
+    const pageResult = await db.query(`SELECT id FROM pages WHERE name = 'about' LIMIT 1`);
+    const pageId = pageResult.rows[0].id;
 
-    if (pageResult.rows.length === 0) {
-      return res.status(404).json({ error: 'About page not found' });
-    }
-
-    const page = pageResult.rows[0];
-    const pageId = page.id;
-
-    // Get vision and mission sections
+    // 2. Get all sections (vision, mission, who we are)
     const sectionsResult = await db.query(
-      'SELECT section_type, content FROM about_sections WHERE page_id = $1',
+      `
+        SELECT 
+          section_type,
+          content
+        FROM about_sections 
+        WHERE page_id = $1
+      `,
       [pageId]
     );
 
-    // Get team members
+    // 3. Get team members
     const teamResult = await db.query(
-      'SELECT * FROM team_members WHERE page_id = $1 ORDER BY order_index, created_at',
+      `
+        SELECT 
+          id, 
+          name, 
+          designation, 
+          photo_url, 
+          order_index,
+          created_at
+        FROM team_members
+        WHERE page_id = $1
+        ORDER BY order_index ASC, created_at ASC
+      `,
       [pageId]
     );
 
-    // Structure the response
+    // 4. Get events (⭐ NEW)
+    const eventsResult = await db.query(
+      `
+        SELECT
+          id,
+          event_title,
+          event_year,
+          event_video_link,
+          order_index,
+          created_at
+        FROM about_events
+        WHERE page_id = $1
+        ORDER BY event_year DESC, order_index ASC
+      `,
+      [pageId]
+    );
+
+    // 5. Construct response object
     const sections = {};
-    sectionsResult.rows.forEach((section) => {
-      sections[section.section_type] = section.content;
+    sectionsResult.rows.forEach((sec) => {
+      sections[sec.section_type] = sec.content;
     });
 
-    res.json({
-      // Page info
-      id: page.id,
-      name: page.name,
-      title: page.title,
-      backgroundVideoUrl: page.background_video_url,
-      backgroundThumbnailUrl: page.background_thumbnail_url,
-      status: page.status,
-      vision: sections.vision || '',
-      mission: sections.mission || '',
+    return res.json({
+      success: true,
+      page_id: pageId,
+
+      sections: sections,
+      totalSections: sectionsResult.rows.length,
+
       team: teamResult.rows,
-      totalTeamMembers: teamResult.rows.length,
+      totalTeam: teamResult.rows.length,
+
+      events: eventsResult.rows, // ⭐ NEW
+      totalEvents: eventsResult.rows.length,
     });
   } catch (error) {
-    console.error('Error fetching about page data:', error);
-    res.status(500).json({ error: 'Server error' });
+    console.error('Error fetching About Page Data:', error.message);
+    res.status(500).json({
+      success: false,
+      message: 'Internal Server Error',
+    });
   }
 };
 
@@ -447,6 +475,93 @@ const deleteTeamMember = async (req, res) => {
   }
 };
 
+//get events data
+
+const getAllEvents = async (req, res) => {
+  try {
+    const pageIdResult = await db.query(`SELECT id FROM pages WHERE name = 'about'`);
+    const pageId = pageIdResult.rows[0].id;
+
+    const result = await db.query(
+      `
+        SELECT * FROM about_events
+        WHERE page_id = $1
+        ORDER BY event_year DESC, order_index ASC
+      `,
+      [pageId]
+    );
+
+    res.json({ events: result.rows, total: result.rows.length });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+};
+
+const addEvent = async (req, res) => {
+  try {
+    const { event_title, event_year, event_video_link, order_index } = req.body;
+
+    const pageIdResult = await db.query(`SELECT id FROM pages WHERE name = 'about'`);
+    const pageId = pageIdResult.rows[0].id;
+
+    const insert = await db.query(
+      `
+        INSERT INTO about_events (page_id, event_title, event_year, event_video_link, order_index)
+        VALUES ($1, $2, $3, $4, $5)
+        RETURNING *
+      `,
+      [pageId, event_title, event_year, event_video_link, order_index || 0]
+    );
+
+    res.json({ success: true, message: 'Event added', data: insert.rows[0] });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+};
+
+// Update event
+const updateEvent = async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    const { event_title, event_year, event_video_link, order_index } = req.body;
+
+    const update = await db.query(
+      `
+        UPDATE about_events
+        SET event_title = $1,
+            event_year = $2,
+            event_video_link = $3,
+            order_index = $4,
+            updated_at = NOW()
+        WHERE id = $5
+        RETURNING *
+      `,
+      [event_title, event_year, event_video_link, order_index, eventId]
+    );
+
+    res.json({ success: true, message: 'Event updated', data: update.rows[0] });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+};
+
+// Delete event
+const deleteEvent = async (req, res) => {
+  try {
+    const { eventId } = req.params;
+
+    const del = await db.query(`DELETE FROM about_events WHERE id = $1 RETURNING *`, [eventId]);
+
+    res.json({ success: true, message: 'Event deleted', data: del.rows[0] });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+};
+
 module.exports = {
   getAboutPageData,
   updateVision,
@@ -456,4 +571,8 @@ module.exports = {
   addTeamMember,
   updateTeamMember,
   deleteTeamMember,
+  getAllEvents,
+  addEvent,
+  updateEvent,
+  deleteEvent,
 };

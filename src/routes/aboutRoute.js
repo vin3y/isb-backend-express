@@ -1,19 +1,19 @@
 const express = require('express');
 const router = express.Router();
+
 const aboutController = require('../controllers/aboutController');
-const { uploadTeamPhoto } = require('../utils/s3');
-const { authenticateToken } = require('../middlewares/auth');
+const authenticateToken = require('../middleware/authMiddleware');
 
-// Get all about page data (vision, mission, team)
-router.get('/', authenticateToken, aboutController.getAboutPageData);
+const { uploadTeamPhoto, uploadAboutEventVideo } = require('../utils/s3');
 
-// Vision and Mission routes
-router.put('/vision', authenticateToken, aboutController.updateVision);
-router.put('/mission', authenticateToken, aboutController.updateMission);
+// ==============================
+// GET ABOUT PAGE – Admin Panel
+// ==============================
+router.get('/page-data', authenticateToken, aboutController.getAboutPageData);
 
-// Team member routes
-router.get('/team', authenticateToken, aboutController.getAllTeamMembers);
-router.get('/team/:memberId', authenticateToken, aboutController.getTeamMember);
+// ==============================
+// TEAM CRUD
+// ==============================
 router.post(
   '/team',
   authenticateToken,
@@ -21,11 +21,37 @@ router.post(
   aboutController.addTeamMember
 );
 router.put(
-  '/team/:memberId',
+  '/team/:id',
   authenticateToken,
   uploadTeamPhoto.single('photo'),
   aboutController.updateTeamMember
 );
-router.delete('/team/:memberId', authenticateToken, aboutController.deleteTeamMember);
+router.delete('/team/:id', authenticateToken, aboutController.deleteTeamMember);
+
+// ==============================
+// SECTIONS (Vision, Mission, Who We Are)
+// ==============================
+router.post('/sections', authenticateToken, aboutController.updateAboutSections);
+
+// ==============================
+// EVENTS CRUD (⭐ NEW)
+// ==============================
+router.get('/events', authenticateToken, aboutController.getAllEvents);
+
+router.post(
+  '/events',
+  authenticateToken,
+  uploadAboutEventVideo.single('event_video'), // upload video
+  aboutController.addEvent
+);
+
+router.put(
+  '/events/:eventId',
+  authenticateToken,
+  uploadAboutEventVideo.single('event_video'), // optional video update
+  aboutController.updateEvent
+);
+
+router.delete('/events/:eventId', authenticateToken, aboutController.deleteEvent);
 
 module.exports = router;
