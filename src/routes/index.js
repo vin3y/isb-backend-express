@@ -12,11 +12,10 @@ const contactRoutes = require('./contactRoutes');
 const actionRoutes = require('./actionRoutes');
 const isbFilmsRoutes = require('./isbFilmRoutes');
 const isbFilmsPublicRoutes = require('./isbFilmsPublicRoutes');
-// const {authenticateToken} = require("../middlewares/auth");
 
 const router = express.Router();
 
-console.log("🔍 Loading routes...");
+console.log('🔍 Loading routes...');
 
 router.use('/auth', authRoutes);
 router.use('/pages', pageRoutes);
@@ -30,13 +29,9 @@ router.use('/partners', partnersRoutes);
 router.use('/contact', contactRoutes);
 router.use('/actions', actionRoutes);
 
-
 //isbfilms
 router.use('/isbfilms', isbFilmsRoutes);
 router.use('/public/isbfilms', isbFilmsPublicRoutes); // NEW
-
-
-
 
 // API root endpoint
 router.get('/', (req, res) => {

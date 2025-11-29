@@ -28,7 +28,6 @@ const uploadBackgroundVideo = multer({
   storage: multerS3({
     s3: s3,
     bucket: bucketName,
-    acl: 'public-read',
     contentType: multerS3.AUTO_CONTENT_TYPE,
     key: (req, file, cb) => {
       const pageName = req.params.pageName || 'home';
@@ -53,7 +52,6 @@ const uploadTeamPhoto = multer({
   storage: multerS3({
     s3: s3,
     bucket: bucketName,
-    acl: 'public-read',
     contentType: multerS3.AUTO_CONTENT_TYPE,
     key: (req, file, cb) => {
       const timestamp = Date.now();
@@ -77,7 +75,6 @@ const uploadPartnerLogo = multer({
   storage: multerS3({
     s3: s3,
     bucket: bucketName,
-    acl: 'public-read',
     contentType: multerS3.AUTO_CONTENT_TYPE,
     key: (req, file, cb) => {
       const timestamp = Date.now();
@@ -101,7 +98,6 @@ const uploadAwardImage = multer({
   storage: multerS3({
     s3: s3,
     bucket: bucketName,
-    acl: 'public-read',
     contentType: multerS3.AUTO_CONTENT_TYPE,
     key: (req, file, cb) => {
       const timestamp = Date.now();
@@ -134,7 +130,6 @@ const uploadKeyOfferingImage = multer({
   storage: multerS3({
     s3: s3,
     bucket: bucketName,
-    acl: 'public-read',
     contentType: multerS3.AUTO_CONTENT_TYPE,
     key: (req, file, cb) => {
       const timestamp = Date.now();
@@ -167,7 +162,6 @@ const uploadCaseStudyImage = multer({
   storage: multerS3({
     s3: s3,
     bucket: bucketName,
-    acl: 'public-read',
     contentType: multerS3.AUTO_CONTENT_TYPE,
     key: (req, file, cb) => {
       const timestamp = Date.now();
@@ -200,7 +194,6 @@ const uploadWhyWatchISBCImage = multer({
   storage: multerS3({
     s3: s3,
     bucket: bucketName,
-    acl: 'public-read',
     contentType: multerS3.AUTO_CONTENT_TYPE,
     key: (req, file, cb) => {
       const timestamp = Date.now();
@@ -233,7 +226,6 @@ const uploadISBCStandoutImage = multer({
   storage: multerS3({
     s3: s3,
     bucket: bucketName,
-    acl: 'public-read',
     contentType: multerS3.AUTO_CONTENT_TYPE,
     key: (req, file, cb) => {
       const timestamp = Date.now();
@@ -270,7 +262,6 @@ const uploadISBFilmsCrewPhoto = multer({
   storage: multerS3({
     s3: s3,
     bucket: bucketName,
-    acl: 'public-read',
     contentType: multerS3.AUTO_CONTENT_TYPE,
     key: (req, file, cb) => {
       const timestamp = Date.now();
@@ -306,7 +297,6 @@ const uploadISBFilmsBackgroundVideo = multer({
   storage: multerS3({
     s3: s3,
     bucket: bucketName,
-    acl: 'public-read',
     contentType: multerS3.AUTO_CONTENT_TYPE,
     key: (req, file, cb) => {
       const pageName = req.params.pageName || 'home';
@@ -337,7 +327,6 @@ const uploadISBFilmsNewsImage = multer({
   storage: multerS3({
     s3: s3,
     bucket: bucketName,
-    acl: 'public-read',
     contentType: multerS3.AUTO_CONTENT_TYPE,
     key: (req, file, cb) => {
       const timestamp = Date.now();
@@ -373,7 +362,6 @@ const uploadISBFilmsMoviePoster = multer({
   storage: multerS3({
     s3: s3,
     bucket: bucketName,
-    acl: 'public-read',
     contentType: multerS3.AUTO_CONTENT_TYPE,
     key: (req, file, cb) => {
       const timestamp = Date.now();
@@ -415,7 +403,6 @@ const uploadISBFilmsAwardLogo = multer({
   storage: multerS3({
     s3: s3,
     bucket: bucketName,
-    acl: 'public-read',
     contentType: multerS3.AUTO_CONTENT_TYPE,
     key: (req, file, cb) => {
       const timestamp = Date.now();
@@ -453,7 +440,6 @@ const uploadISBFilmsMovieWithAwards = multer({
   storage: multerS3({
     s3: s3,
     bucket: bucketName,
-    acl: 'public-read',
     contentType: multerS3.AUTO_CONTENT_TYPE,
     key: (req, file, cb) => {
       const timestamp = Date.now();
@@ -540,7 +526,6 @@ const uploadISBFilmsSustainabilityVowImage = multer({
   storage: multerS3({
     s3: s3,
     bucket: bucketName,
-    acl: 'public-read',
     contentType: multerS3.AUTO_CONTENT_TYPE,
     key: (req, file, cb) => {
       const timestamp = Date.now();
@@ -584,7 +569,6 @@ const uploadAboutEventVideo = multer({
   storage: multerS3({
     s3: s3,
     bucket: bucketName,
-    acl: 'public-read', // public video link
     contentType: multerS3.AUTO_CONTENT_TYPE, // auto detect mime
     key: (req, file, cb) => {
       const timestamp = Date.now();

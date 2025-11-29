@@ -1,6 +1,5 @@
 const db = require('../config/db');
 const { deleteFile } = require('../utils/s3');
-const router = require('../routes');
 const { activityLoggers } = require('../middlewares/activityLogger');
 
 const getAboutPageData = async (req, res) => {

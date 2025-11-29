@@ -1,12 +1,9 @@
 const express = require('express');
 const cors = require('cors');
 
-const { swaggerUi, swaggerSpec } = require('./src/config/swagger');
-
 // Only use dotenv in development
-if (process.env.NODE_ENV !== 'production') {
-  require('dotenv').config();
-}
+
+require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 8080;
@@ -72,8 +69,6 @@ app.get('/', (req, res) => {
     timestamp: new Date().toISOString(),
   });
 });
-
-app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 // Conditional route loading
 if (process.env.AWS_BUCKETNAME && process.env.DB_HOST) {
