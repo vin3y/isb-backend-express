@@ -5,14 +5,12 @@ const { activityLoggers } = require('../middlewares/activityLogger');
 // Get all crew members (PUBLISHED ONLY for public)
 const getAllISBFilmsCrew = async (req, res) => {
   try {
-    const pageResult = await db.query(
-      "SELECT id FROM isb_films_pages WHERE name = 'home'"
-    );
+    const pageResult = await db.query("SELECT id FROM isb_films_pages WHERE name = 'home'");
 
     if (pageResult.rows.length === 0) {
       return res.status(404).json({
         success: false,
-        error: 'Home page not found'
+        error: 'Home page not found',
       });
     }
 
@@ -34,7 +32,7 @@ const getAllISBFilmsCrew = async (req, res) => {
     console.error('Error fetching ISB Films crew:', error);
     res.status(500).json({
       success: false,
-      error: 'Server error'
+      error: 'Server error',
     });
   }
 };
@@ -42,14 +40,12 @@ const getAllISBFilmsCrew = async (req, res) => {
 // Get all crew members for admin (ALL STATUSES)
 const getAllISBFilmsCrewAdmin = async (req, res) => {
   try {
-    const pageResult = await db.query(
-      "SELECT id FROM isb_films_pages WHERE name = 'home'"
-    );
+    const pageResult = await db.query("SELECT id FROM isb_films_pages WHERE name = 'home'");
 
     if (pageResult.rows.length === 0) {
       return res.status(404).json({
         success: false,
-        error: 'Home page not found'
+        error: 'Home page not found',
       });
     }
 
@@ -71,7 +67,7 @@ const getAllISBFilmsCrewAdmin = async (req, res) => {
     console.error('Error fetching ISB Films crew:', error);
     res.status(500).json({
       success: false,
-      error: 'Server error'
+      error: 'Server error',
     });
   }
 };
@@ -81,15 +77,12 @@ const getISBFilmsCrewMember = async (req, res) => {
   const { crewId } = req.params;
 
   try {
-    const result = await db.query(
-      'SELECT * FROM isb_films_crew WHERE id = $1',
-      [crewId]
-    );
+    const result = await db.query('SELECT * FROM isb_films_crew WHERE id = $1', [crewId]);
 
     if (result.rows.length === 0) {
       return res.status(404).json({
         success: false,
-        error: 'Crew member not found'
+        error: 'Crew member not found',
       });
     }
 
@@ -101,7 +94,7 @@ const getISBFilmsCrewMember = async (req, res) => {
     console.error('Error fetching crew member:', error);
     res.status(500).json({
       success: false,
-      error: 'Server error'
+      error: 'Server error',
     });
   }
 };
@@ -113,21 +106,19 @@ const addISBFilmsCrewMember = async (req, res) => {
   if (!name) {
     return res.status(400).json({
       success: false,
-      error: 'Name is required'
+      error: 'Name is required',
     });
   }
 
   console.log('👤 Adding crew member:', { name, status: 'draft' });
 
   try {
-    const pageResult = await db.query(
-      "SELECT id, status FROM isb_films_pages WHERE name = 'home'"
-    );
+    const pageResult = await db.query("SELECT id, status FROM isb_films_pages WHERE name = 'home'");
 
     if (pageResult.rows.length === 0) {
       return res.status(404).json({
         success: false,
-        error: 'Home page not found'
+        error: 'Home page not found',
       });
     }
 
@@ -140,14 +131,7 @@ const addISBFilmsCrewMember = async (req, res) => {
        (page_id, name, photo_url, designation, about, order_index, status, created_at, updated_at) 
        VALUES ($1, $2, $3, $4, $5, $6, 'draft', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP) 
        RETURNING *`,
-      [
-        pageId,
-        name,
-        photoUrl,
-        designation || null,
-        about || null,
-        order_index || 0,
-      ]
+      [pageId, name, photoUrl, designation || null, about || null, order_index || 0]
     );
 
     const newCrew = result.rows[0];
@@ -195,7 +179,7 @@ const addISBFilmsCrewMember = async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Server error',
-      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined,
     });
   }
 };
@@ -206,15 +190,12 @@ const updateISBFilmsCrewMember = async (req, res) => {
   const { name, designation, about, order_index, status } = req.body;
 
   try {
-    const oldDataResult = await db.query(
-      'SELECT * FROM isb_films_crew WHERE id = $1',
-      [crewId]
-    );
+    const oldDataResult = await db.query('SELECT * FROM isb_films_crew WHERE id = $1', [crewId]);
 
     if (oldDataResult.rows.length === 0) {
       return res.status(404).json({
         success: false,
-        error: 'Crew member not found'
+        error: 'Crew member not found',
       });
     }
 
@@ -222,9 +203,7 @@ const updateISBFilmsCrewMember = async (req, res) => {
     const photoUrl = req.file ? req.file.location : oldCrew.photo_url;
 
     // Get page status
-    const pageResult = await db.query(
-      "SELECT id, status FROM isb_films_pages WHERE name = 'home'"
-    );
+    const pageResult = await db.query("SELECT id, status FROM isb_films_pages WHERE name = 'home'");
     const pageId = pageResult.rows[0].id;
     const oldPageStatus = pageResult.rows[0].status;
 
@@ -289,7 +268,9 @@ const updateISBFilmsCrewMember = async (req, res) => {
       req,
       'ISB Films - Home',
       'crew',
-      `Updated crew member "${updatedCrew.name}" (${changedFields.length > 0 ? changedFields.join(', ') : 'no changes'})`,
+      `Updated crew member "${updatedCrew.name}" (${
+        changedFields.length > 0 ? changedFields.join(', ') : 'no changes'
+      })`,
       oldCrew,
       updatedCrew
     );
@@ -303,7 +284,7 @@ const updateISBFilmsCrewMember = async (req, res) => {
     console.error('❌ Error updating ISB Films crew member:', error);
     res.status(500).json({
       success: false,
-      error: 'Server error'
+      error: 'Server error',
     });
   }
 };
@@ -313,24 +294,19 @@ const deleteISBFilmsCrewMember = async (req, res) => {
   const { crewId } = req.params;
 
   try {
-    const crewResult = await db.query(
-      'SELECT * FROM isb_films_crew WHERE id = $1',
-      [crewId]
-    );
+    const crewResult = await db.query('SELECT * FROM isb_films_crew WHERE id = $1', [crewId]);
 
     if (crewResult.rows.length === 0) {
       return res.status(404).json({
         success: false,
-        error: 'Crew member not found'
+        error: 'Crew member not found',
       });
     }
 
     const crew = crewResult.rows[0];
 
     // Get page status
-    const pageResult = await db.query(
-      "SELECT id, status FROM isb_films_pages WHERE name = 'home'"
-    );
+    const pageResult = await db.query("SELECT id, status FROM isb_films_pages WHERE name = 'home'");
     const pageId = pageResult.rows[0].id;
     const oldPageStatus = pageResult.rows[0].status;
 
@@ -372,13 +348,13 @@ const deleteISBFilmsCrewMember = async (req, res) => {
 
     res.json({
       success: true,
-      message: `Crew member "${crew.name}" deleted successfully. Page saved as draft.`
+      message: `Crew member "${crew.name}" deleted successfully. Page saved as draft.`,
     });
   } catch (error) {
     console.error('❌ Error deleting ISB Films crew member:', error);
     res.status(500).json({
       success: false,
-      error: 'Server error'
+      error: 'Server error',
     });
   }
 };
@@ -390,15 +366,13 @@ const reorderISBFilmsCrew = async (req, res) => {
   if (!Array.isArray(crewMembers) || crewMembers.length === 0) {
     return res.status(400).json({
       success: false,
-      error: 'Invalid crew members array'
+      error: 'Invalid crew members array',
     });
   }
 
   try {
     // Get page status
-    const pageResult = await db.query(
-      "SELECT id, status FROM isb_films_pages WHERE name = 'home'"
-    );
+    const pageResult = await db.query("SELECT id, status FROM isb_films_pages WHERE name = 'home'");
     const pageId = pageResult.rows[0].id;
     const oldPageStatus = pageResult.rows[0].status;
 
@@ -442,14 +416,124 @@ const reorderISBFilmsCrew = async (req, res) => {
 
     res.json({
       success: true,
-      message: 'Crew members reordered successfully. Page saved as draft.'
+      message: 'Crew members reordered successfully. Page saved as draft.',
     });
   } catch (error) {
     console.error('❌ Error reordering ISB Films crew:', error);
     res.status(500).json({
       success: false,
-      error: 'Server error'
+      error: 'Server error',
     });
+  }
+};
+
+const getHomeSections = async (req, res) => {
+  try {
+    const pageResult = await db.query("SELECT id FROM isb_films_pages WHERE name = 'home'");
+
+    if (pageResult.rows.length === 0)
+      return res.status(404).json({ success: false, error: 'Home page not found' });
+
+    const pageId = pageResult.rows[0].id;
+
+    const sectionsResult = await db.query(
+      `SELECT * FROM isb_films_home_multiple 
+       WHERE films_page_id = $1
+       ORDER BY id ASC`,
+      [pageId]
+    );
+
+    res.json({
+      success: true,
+      sections: sectionsResult.rows,
+      total: sectionsResult.rows.length,
+    });
+  } catch (err) {
+    console.error('Error fetching home sections:', err);
+    res.status(500).json({ success: false, error: 'Server error' });
+  }
+};
+
+// ==============================
+// ADD new section
+// ==============================
+const addHomeSection = async (req, res) => {
+  try {
+    const { section_type, content } = req.body;
+
+    if (!section_type || !content) {
+      return res.status(400).json({ success: false, error: 'All fields required' });
+    }
+
+    const pageResult = await db.query("SELECT id FROM isb_films_pages WHERE name = 'home'");
+
+    const pageId = pageResult.rows[0].id;
+
+    const insert = await db.query(
+      `INSERT INTO isb_films_home_multiple (films_page_id, section_type, content)
+       VALUES ($1, $2, $3)
+       RETURNING *`,
+      [pageId, section_type, content]
+    );
+
+    res.json({
+      success: true,
+      message: 'Section added successfully',
+      data: insert.rows[0],
+    });
+  } catch (err) {
+    console.error('Error adding section:', err);
+    res.status(500).json({ success: false, error: 'Server error' });
+  }
+};
+
+// ==============================
+// UPDATE section
+// ==============================
+const updateHomeSection = async (req, res) => {
+  try {
+    const { sectionId } = req.params;
+    const { section_type, content } = req.body;
+
+    const update = await db.query(
+      `UPDATE isb_films_home_multiple
+       SET section_type = $1,
+           content = $2
+       WHERE id = $3
+       RETURNING *`,
+      [section_type, content, sectionId]
+    );
+
+    res.json({
+      success: true,
+      message: 'Section updated successfully',
+      data: update.rows[0],
+    });
+  } catch (err) {
+    console.error('Error updating section:', err);
+    res.status(500).json({ success: false, error: 'Server error' });
+  }
+};
+
+// ==============================
+// DELETE section
+// ==============================
+const deleteHomeSection = async (req, res) => {
+  try {
+    const { sectionId } = req.params;
+
+    const del = await db.query(`DELETE FROM isb_films_home_multiple WHERE id = $1 RETURNING *`, [
+      sectionId,
+    ]);
+
+    res.json({
+      success: true,
+      message: 'Section deleted successfully',
+      deleted: del.rows[0],
+    });
+  } catch (err) {
+    console.error('Error deleting section:', err);
+    res.status(500).json({ success: false, error: 'Server error' });
   }
 };
 
@@ -461,4 +545,8 @@ module.exports = {
   updateISBFilmsCrewMember,
   deleteISBFilmsCrewMember,
   reorderISBFilmsCrew,
+  getHomeSections,
+  addHomeSection,
+  updateHomeSection,
+  deleteHomeSection,
 };

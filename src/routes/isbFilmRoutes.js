@@ -10,12 +10,11 @@ const {
   uploadISBFilmsCrewPhoto,
   uploadISBFilmsNewsImage,
   uploadISBFilmsMovieWithAwards,
-  uploadISBFilmsSustainabilityVowImage
+  uploadISBFilmsSustainabilityVowImage,
 } = require('../utils/s3');
 const { authenticateToken } = require('../middlewares/auth');
 
 // ==================== ISB FILMS MOVIES ROUTES (MUST COME FIRST) ====================
-
 
 router.use((req, res, next) => {
   console.log('🎬 ISB Films Route Hit:', req.method, req.path);
@@ -87,7 +86,11 @@ router.put(
 );
 
 // Delete crew member (admin)
-router.delete('/home/crew/:crewId', authenticateToken, isbFilmsCrewController.deleteISBFilmsCrewMember);
+router.delete(
+  '/home/crew/:crewId',
+  authenticateToken,
+  isbFilmsCrewController.deleteISBFilmsCrewMember
+);
 
 // Reorder crew members (admin)
 router.post('/home/crew/reorder', authenticateToken, isbFilmsCrewController.reorderISBFilmsCrew);
@@ -118,7 +121,11 @@ router.put(
 );
 
 // Delete news article (admin)
-router.delete('/news/articles/:newsId', authenticateToken, isbFilmsNewsController.deleteNewsArticle);
+router.delete(
+  '/news/articles/:newsId',
+  authenticateToken,
+  isbFilmsNewsController.deleteNewsArticle
+);
 
 // Reorder news articles (admin)
 router.post('/news/articles/reorder', authenticateToken, isbFilmsNewsController.reorderNews);
@@ -139,7 +146,11 @@ router.post('/:pageName/save', authenticateToken, isbFilmsPageController.saveISB
 router.post('/:pageName/publish', authenticateToken, isbFilmsPageController.publishISBFilmsPage);
 
 // Update page status (admin)
-router.patch('/:pageName/status', authenticateToken, isbFilmsPageController.updateISBFilmsPageStatus);
+router.patch(
+  '/:pageName/status',
+  authenticateToken,
+  isbFilmsPageController.updateISBFilmsPageStatus
+);
 
 // Update page title (admin)
 router.patch('/:pageName/title', authenticateToken, isbFilmsPageController.updateISBFilmsPageTitle);
@@ -160,13 +171,24 @@ router.post(
 );
 
 // Public routes (published only)
-router.get('/sustainability/vows/public', isbFilmsSustainabilityController.getAllSustainabilityVows);
+router.get(
+  '/sustainability/vows/public',
+  isbFilmsSustainabilityController.getAllSustainabilityVows
+);
 
 // Admin routes (all statuses)
-router.get('/sustainability/vows', authenticateToken, isbFilmsSustainabilityController.getAllSustainabilityVowsAdmin);
+router.get(
+  '/sustainability/vows',
+  authenticateToken,
+  isbFilmsSustainabilityController.getAllSustainabilityVowsAdmin
+);
 
 // Reorder vows
-router.post('/sustainability/vows/reorder', authenticateToken, isbFilmsSustainabilityController.reorderSustainabilityVows);
+router.post(
+  '/sustainability/vows/reorder',
+  authenticateToken,
+  isbFilmsSustainabilityController.reorderSustainabilityVows
+);
 
 // Create vow
 router.post(
@@ -177,7 +199,11 @@ router.post(
 );
 
 // Get single vow
-router.get('/sustainability/vows/:vowId', authenticateToken, isbFilmsSustainabilityController.getSustainabilityVow);
+router.get(
+  '/sustainability/vows/:vowId',
+  authenticateToken,
+  isbFilmsSustainabilityController.getSustainabilityVow
+);
 
 // Update vow
 router.put(
@@ -188,7 +214,30 @@ router.put(
 );
 
 // Delete vow
-router.delete('/sustainability/vows/:vowId', authenticateToken, isbFilmsSustainabilityController.deleteSustainabilityVow);
+router.delete(
+  '/sustainability/vows/:vowId',
+  authenticateToken,
+  isbFilmsSustainabilityController.deleteSustainabilityVow
+);
 
+// Get all sections
+router.get('/home/sections', authenticateToken, isbFilmsCrewController.getHomeSections);
+
+// Add section
+router.post('/home/sections', authenticateToken, isbFilmsCrewController.addHomeSection);
+
+// Update section
+router.put(
+  '/home/sections/:sectionId',
+  authenticateToken,
+  isbFilmsCrewController.updateHomeSection
+);
+
+// Delete section
+router.delete(
+  '/home/sections/:sectionId',
+  authenticateToken,
+  isbFilmsCrewController.deleteHomeSection
+);
 
 module.exports = router;

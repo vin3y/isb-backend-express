@@ -164,7 +164,7 @@ const getAllPublicISBFilmsPages = async (req, res) => {
     console.error('Error fetching public ISB Films pages:', error);
     res.status(500).json({
       success: false,
-      error: 'Server error'
+      error: 'Server error',
     });
   }
 };
@@ -192,7 +192,7 @@ const getPublicISBFilmsPageDetails = async (req, res) => {
     if (pageResult.rows.length === 0) {
       return res.status(404).json({
         success: false,
-        error: 'Page not found or not published'
+        error: 'Page not found or not published',
       });
     }
 
@@ -204,19 +204,34 @@ const getPublicISBFilmsPageDetails = async (req, res) => {
         // Fetch crew members
         const crewResult = await db.query(
           `SELECT 
-            id, 
-            name, 
-            designation, 
-            photo_url, 
-            about,
-            order_index 
-           FROM isb_films_crew 
-           WHERE page_id = $1 AND status = 'published'
-           ORDER BY order_index, id`,
+      id, 
+      name, 
+      designation, 
+      photo_url, 
+      about,
+      order_index 
+     FROM isb_films_crew 
+     WHERE page_id = $1 AND status = 'published'
+     ORDER BY order_index, id`,
           [page.id]
         );
         page.crew = crewResult.rows;
         page.totalCrew = crewResult.rows.length;
+
+        // ⭐ NEW — Fetch What We Do + Projects With Personality sections
+        const homeSectionsResult = await db.query(
+          `SELECT 
+        id,
+        section_type,
+        content
+     FROM isb_films_home_multiple
+     WHERE films_page_id = $1
+     ORDER BY id ASC`,
+          [page.id]
+        );
+
+        page.sections = homeSectionsResult.rows; // <–– attach sections here
+
         break;
 
       case 'filmography':
@@ -327,7 +342,7 @@ const getPublicISBFilmsPageDetails = async (req, res) => {
     console.error('Error fetching public ISB Films page details:', error);
     res.status(500).json({
       success: false,
-      error: 'Server error'
+      error: 'Server error',
     });
   }
 };
@@ -361,7 +376,7 @@ const getAllISBFilmsPagesBackground = async (req, res) => {
     console.error('Error fetching ISB Films pages background data:', error);
     res.status(500).json({
       success: false,
-      error: 'Server error'
+      error: 'Server error',
     });
   }
 };
@@ -385,7 +400,7 @@ const getISBFilmsPageBackground = async (req, res) => {
     if (result.rows.length === 0) {
       return res.status(404).json({
         success: false,
-        error: 'Page not found or not published'
+        error: 'Page not found or not published',
       });
     }
 
@@ -397,7 +412,7 @@ const getISBFilmsPageBackground = async (req, res) => {
     console.error('Error fetching ISB Films page background:', error);
     res.status(500).json({
       success: false,
-      error: 'Server error'
+      error: 'Server error',
     });
   }
 };
@@ -415,7 +430,7 @@ const getPublicMovieDetails = async (req, res) => {
     if (movieResult.rows.length === 0) {
       return res.status(404).json({
         success: false,
-        error: 'Movie not found or not published'
+        error: 'Movie not found or not published',
       });
     }
 
@@ -448,7 +463,7 @@ const getPublicMovieDetails = async (req, res) => {
     console.error('Error fetching public movie details:', error);
     res.status(500).json({
       success: false,
-      error: 'Server error'
+      error: 'Server error',
     });
   }
 };
@@ -540,7 +555,7 @@ const getLatestMovies = async (req, res) => {
     console.error('Error fetching latest movies:', error);
     res.status(500).json({
       success: false,
-      error: 'Server error'
+      error: 'Server error',
     });
   }
 };
@@ -609,7 +624,7 @@ const getPublicNewsArticle = async (req, res) => {
     if (result.rows.length === 0) {
       return res.status(404).json({
         success: false,
-        error: 'News article not found or not published'
+        error: 'News article not found or not published',
       });
     }
 
@@ -621,7 +636,7 @@ const getPublicNewsArticle = async (req, res) => {
     console.error('Error fetching public news article:', error);
     res.status(500).json({
       success: false,
-      error: 'Server error'
+      error: 'Server error',
     });
   }
 };
@@ -726,7 +741,7 @@ const getPublicSustainabilityVow = async (req, res) => {
     if (result.rows.length === 0) {
       return res.status(404).json({
         success: false,
-        error: 'Sustainability vow not found or not published'
+        error: 'Sustainability vow not found or not published',
       });
     }
 
@@ -738,7 +753,7 @@ const getPublicSustainabilityVow = async (req, res) => {
     console.error('Error fetching public sustainability vow:', error);
     res.status(500).json({
       success: false,
-      error: 'Server error'
+      error: 'Server error',
     });
   }
 };

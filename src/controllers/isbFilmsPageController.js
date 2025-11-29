@@ -27,10 +27,7 @@ const getISBFilmsPageDetails = async (req, res) => {
   const { pageName } = req.params;
 
   try {
-    const pageResult = await db.query(
-      'SELECT * FROM isb_films_pages WHERE name = $1',
-      [pageName]
-    );
+    const pageResult = await db.query('SELECT * FROM isb_films_pages WHERE name = $1', [pageName]);
 
     if (pageResult.rows.length === 0) {
       return res.status(404).json({ error: 'Page not found' });
@@ -40,14 +37,25 @@ const getISBFilmsPageDetails = async (req, res) => {
 
     // Fetch associated content based on page
     if (pageName === 'home') {
-      // Get crew members
+      // Get crew
       const crewResult = await db.query(
         `SELECT * FROM isb_films_crew 
-         WHERE page_id = $1 
-         ORDER BY order_index, id`,
+     WHERE page_id = $1 
+     ORDER BY order_index, id`,
         [page.id]
       );
       page.crew = crewResult.rows;
+
+      // ⭐ NEW: Get home content sections
+      const homeContent = await db.query(
+        `SELECT id, section_type, content 
+     FROM isb_films_home_multiple
+     WHERE films_page_id = $1
+     ORDER BY id ASC`,
+        [page.id]
+      );
+
+      page.sections = homeContent.rows;
     }
 
     if (pageName === 'filmography') {
@@ -88,10 +96,9 @@ const saveISBFilmsPage = async (req, res) => {
 
   try {
     // Get old data for logging
-    const oldDataResult = await db.query(
-      'SELECT * FROM isb_films_pages WHERE name = $1',
-      [pageName]
-    );
+    const oldDataResult = await db.query('SELECT * FROM isb_films_pages WHERE name = $1', [
+      pageName,
+    ]);
     const oldPage = oldDataResult.rows[0];
 
     if (!oldPage) {
@@ -151,10 +158,9 @@ const publishISBFilmsPage = async (req, res) => {
     await db.query('BEGIN');
 
     // Get old data for logging
-    const oldDataResult = await db.query(
-      'SELECT * FROM isb_films_pages WHERE name = $1',
-      [pageName]
-    );
+    const oldDataResult = await db.query('SELECT * FROM isb_films_pages WHERE name = $1', [
+      pageName,
+    ]);
     const oldPage = oldDataResult.rows[0];
 
     if (!oldPage) {
@@ -291,10 +297,9 @@ const updateISBFilmsPageStatus = async (req, res) => {
 
   try {
     // Get old data for logging
-    const oldDataResult = await db.query(
-      'SELECT * FROM isb_films_pages WHERE name = $1',
-      [pageName]
-    );
+    const oldDataResult = await db.query('SELECT * FROM isb_films_pages WHERE name = $1', [
+      pageName,
+    ]);
     const oldPage = oldDataResult.rows[0];
 
     if (!oldPage) {
@@ -333,10 +338,9 @@ const updateISBFilmsPageTitle = async (req, res) => {
 
   try {
     // Get old data for logging
-    const oldDataResult = await db.query(
-      'SELECT * FROM isb_films_pages WHERE name = $1',
-      [pageName]
-    );
+    const oldDataResult = await db.query('SELECT * FROM isb_films_pages WHERE name = $1', [
+      pageName,
+    ]);
     const oldPage = oldDataResult.rows[0];
 
     if (!oldPage) {
@@ -378,10 +382,9 @@ const uploadISBFilmsBackgroundVideo = async (req, res) => {
 
   try {
     // Get the old video and thumbnail URLs
-    const oldDataResult = await db.query(
-      'SELECT * FROM isb_films_pages WHERE name = $1',
-      [pageName]
-    );
+    const oldDataResult = await db.query('SELECT * FROM isb_films_pages WHERE name = $1', [
+      pageName,
+    ]);
 
     const oldPage = oldDataResult.rows[0];
     if (!oldPage) {
@@ -476,10 +479,7 @@ const generateISBFilmsPageThumbnail = async (req, res) => {
   const { pageName } = req.params;
 
   try {
-    const pageResult = await db.query(
-      'SELECT * FROM isb_films_pages WHERE name = $1',
-      [pageName]
-    );
+    const pageResult = await db.query('SELECT * FROM isb_films_pages WHERE name = $1', [pageName]);
 
     if (pageResult.rows.length === 0) {
       return res.status(404).json({ error: 'Page not found' });
