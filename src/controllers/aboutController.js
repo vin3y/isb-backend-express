@@ -4,83 +4,102 @@ const { activityLoggers } = require('../middlewares/activityLogger');
 
 const getAboutPageData = async (req, res) => {
   try {
-    // 1. Get the About page ID
-    const pageResult = await db.query(`SELECT id FROM pages WHERE name = 'about' LIMIT 1`);
-    const pageId = pageResult.rows[0].id;
+    // 1. Get About Page row
+    const pageResult = await db.query(`
+      SELECT 
+        id, 
+        name, 
+        title, 
+        background_video_url, 
+        background_thumbnail_url, 
+        status 
+      FROM pages 
+      WHERE name = 'about'
+      LIMIT 1
+    `);
 
-    // 2. Get all sections (vision, mission, who we are)
-    const sectionsResult = await db.query(
-      `
-        SELECT 
-          section_type,
-          content
-        FROM about_sections 
-        WHERE page_id = $1
-      `,
-      [pageId]
-    );
+    if (pageResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "About page not found",
+      });
+    }
 
-    // 3. Get team members
-    const teamResult = await db.query(
-      `
-        SELECT 
-          id, 
-          name, 
-          designation, 
-          photo_url, 
-          order_index,
-          created_at
-        FROM team_members
-        WHERE page_id = $1
-        ORDER BY order_index ASC, created_at ASC
-      `,
-      [pageId]
-    );
+    const page = pageResult.rows[0];
+    const pageId = page.id;
 
-    // 4. Get events (⭐ NEW)
-    const eventsResult = await db.query(
-      `
-        SELECT
-          id,
-          event_title,
-          event_year,
-          event_video_link,
-          order_index,
-          created_at
-        FROM about_events
-        WHERE page_id = $1
-        ORDER BY event_year DESC, order_index ASC
-      `,
-      [pageId]
-    );
+    // 2. Get sections (vision, mission)
+    const sectionsResult = await db.query(`
+      SELECT section_type, content
+      FROM about_sections
+      WHERE page_id = $1
+    `, [pageId]);
 
-    // 5. Construct response object
     const sections = {};
-    sectionsResult.rows.forEach((sec) => {
+    sectionsResult.rows.forEach(sec => {
       sections[sec.section_type] = sec.content;
     });
 
+    // 3. Get team members
+    const teamResult = await db.query(`
+      SELECT 
+        id,
+        name,
+        designation,
+        photo_url,
+        order_index,
+        created_at
+      FROM team_members
+      WHERE page_id = $1
+      ORDER BY order_index ASC, created_at ASC
+    `, [pageId]);
+
+    // 4. Get events
+    const eventsResult = await db.query(`
+      SELECT
+        id,
+        event_title,
+        event_year,
+        event_video_link,
+        order_index,
+        created_at
+      FROM about_events
+      WHERE page_id = $1
+      ORDER BY event_year DESC, order_index ASC
+    `, [pageId]);
+
+    // 5. FINAL unified response (same structure as partners)
     return res.json({
       success: true,
-      page_id: pageId,
 
-      sections: sections,
+      // PAGE INFO (same as partners)
+      id: page.id,
+      name: page.name,
+      title: page.title,
+      backgroundVideoUrl: page.background_video_url,
+      backgroundThumbnailUrl: page.background_thumbnail_url,
+      status: page.status,
+
+      // ABOUT SPECIFIC
+      sections,
       totalSections: sectionsResult.rows.length,
 
       team: teamResult.rows,
       totalTeam: teamResult.rows.length,
 
-      events: eventsResult.rows, // ⭐ NEW
+      events: eventsResult.rows,
       totalEvents: eventsResult.rows.length,
     });
+
   } catch (error) {
-    console.error('Error fetching About Page Data:', error.message);
+    console.error("Error fetching About Page Data:", error);
     res.status(500).json({
       success: false,
-      message: 'Internal Server Error',
+      error: "Internal Server Error",
     });
   }
 };
+
 
 // Update vision section
 const updateVision = async (req, res) => {
@@ -499,24 +518,54 @@ const getAllEvents = async (req, res) => {
 
 const addEvent = async (req, res) => {
   try {
-    const { event_title, event_year, event_video_link, order_index } = req.body;
+    const { event_title, event_year, order_index } = req.body;
 
-    const pageIdResult = await db.query(`SELECT id FROM pages WHERE name = 'about'`);
-    const pageId = pageIdResult.rows[0].id;
+    // Validate required fields
+    if (!event_title || !event_year) {
+      return res.status(400).json({
+        success: false,
+        error: "event_title and event_year are required"
+      });
+    }
 
+    // Check the uploaded file
+    if (!req.file || !req.file.location) {
+      return res.status(400).json({
+        success: false,
+        error: "Event video is required and must be a valid video file"
+      });
+    }
+
+    const videoLink = req.file.location;  // ⭐ This is the S3 URL
+
+    // Get About page ID
+    const pageResult = await db.query(`SELECT id FROM pages WHERE name = 'about' LIMIT 1`);
+    const pageId = pageResult.rows[0].id;
+
+    // Insert event into DB
     const insert = await db.query(
       `
-        INSERT INTO about_events (page_id, event_title, event_year, event_video_link, order_index)
-        VALUES ($1, $2, $3, $4, $5)
-        RETURNING *
+      INSERT INTO about_events 
+      (page_id, event_title, event_year, event_video_link, order_index)
+      VALUES ($1, $2, $3, $4, $5)
+      RETURNING *
       `,
-      [pageId, event_title, event_year, event_video_link, order_index || 0]
+      [pageId, event_title, event_year, videoLink, order_index || 0]
     );
 
-    res.json({ success: true, message: 'Event added', data: insert.rows[0] });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Server error' });
+    return res.json({
+      success: true,
+      message: "Event added successfully",
+      data: insert.rows[0],
+      video_url: videoLink
+    });
+
+  } catch (error) {
+    console.error("Error adding event:", error);
+    return res.status(500).json({
+      success: false,
+      error: "Internal server error"
+    });
   }
 };
 
@@ -524,28 +573,49 @@ const addEvent = async (req, res) => {
 const updateEvent = async (req, res) => {
   try {
     const { eventId } = req.params;
-    const { event_title, event_year, event_video_link, order_index } = req.body;
+    const { event_title, event_year, order_index } = req.body;
+
+    // Get old event
+    const oldEventResult = await db.query(`SELECT * FROM about_events WHERE id = $1`, [eventId]);
+    if (oldEventResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: "Event not found" });
+    }
+
+    const oldEvent = oldEventResult.rows[0];
+
+    // Use new S3 URL if uploaded, otherwise keep old
+    const videoLink = req.file?.location || oldEvent.event_video_link;
 
     const update = await db.query(
       `
-        UPDATE about_events
-        SET event_title = $1,
-            event_year = $2,
-            event_video_link = $3,
-            order_index = $4,
-            updated_at = NOW()
-        WHERE id = $5
-        RETURNING *
+      UPDATE about_events
+      SET event_title = $1,
+          event_year = $2,
+          event_video_link = $3,
+          order_index = $4,
+          updated_at = NOW()
+      WHERE id = $5
+      RETURNING *
       `,
-      [event_title, event_year, event_video_link, order_index, eventId]
+      [event_title, event_year, videoLink, order_index || 0, eventId]
     );
 
-    res.json({ success: true, message: 'Event updated', data: update.rows[0] });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Server error' });
+    return res.json({
+      success: true,
+      message: "Event updated successfully",
+      data: update.rows[0],
+      video_url: videoLink
+    });
+
+  } catch (error) {
+    console.error("Error updating event:", error);
+    return res.status(500).json({
+      success: false,
+      error: "Internal server error"
+    });
   }
 };
+
 
 // Delete event
 const deleteEvent = async (req, res) => {
