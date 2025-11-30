@@ -35,6 +35,14 @@ router.delete('/team/:id', authenticateToken, aboutController.deleteTeamMember);
 // ==============================
 // router.post('/sections', authenticateToken, aboutController.updateAboutSections);
 
+
+// ==============================
+// SECTIONS (Vision, Mission)
+// ==============================
+router.put('/vision', authenticateToken, aboutController.updateVision);
+router.put('/mission', authenticateToken, aboutController.updateMission);
+
+
 // ==============================
 // EVENTS CRUD (⭐ NEW)
 // ==============================

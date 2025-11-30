@@ -327,7 +327,7 @@ const addTeamMember = async (req, res) => {
 // Update team member
 const updateTeamMember = async (req, res) => {
   try {
-    const { memberId } = req.params;
+    const memberId  = req.params.id;
     const { name, designation } = req.body;
 
     // Get old data for logging
@@ -446,7 +446,7 @@ const updateTeamMember = async (req, res) => {
 
 const deleteTeamMember = async (req, res) => {
   try {
-    const { memberId } = req.params;
+    const memberId = req.params.id;
 
     // Get team member data before deletion for logging
     const teamMemberQuery = 'SELECT * FROM team_members WHERE id = $1';
