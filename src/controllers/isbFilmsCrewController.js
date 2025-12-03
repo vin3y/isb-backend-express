@@ -459,9 +459,9 @@ const getHomeSections = async (req, res) => {
 // ==============================
 const addHomeSection = async (req, res) => {
   try {
-    const { section_type, content } = req.body;
+    const { section_type, title, content } = req.body;
 
-    if (!section_type || !content) {
+    if (!section_type || !title || !content) {
       return res.status(400).json({ success: false, error: 'All fields required' });
     }
 
@@ -470,10 +470,10 @@ const addHomeSection = async (req, res) => {
     const pageId = pageResult.rows[0].id;
 
     const insert = await db.query(
-      `INSERT INTO isb_films_home_multiple (films_page_id, section_type, content)
-       VALUES ($1, $2, $3)
+      `INSERT INTO isb_films_home_multiple (films_page_id, section_type, title, content)
+       VALUES ($1, $2, $3, $4)
        RETURNING *`,
-      [pageId, section_type, content]
+      [pageId, section_type, title, content]
     );
 
     res.json({
@@ -514,7 +514,6 @@ const updateHomeSection = async (req, res) => {
     res.status(500).json({ success: false, error: 'Server error' });
   }
 };
-
 // ==============================
 // DELETE section
 // ==============================

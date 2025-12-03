@@ -246,23 +246,45 @@ const resetPassword = async (req, res) => {
       [userId]
     );
 
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
     const user = userResult.rows[0];
 
-    // 🔐 SUPERUSER — does NOT need old password
+    /* ============================================================
+       SUPERUSER — special rules
+       - Does NOT need currentPassword
+       - Password NEVER expires
+    ============================================================ */
     if (user.role === "superuser") {
       const hashedPassword = await bcrypt.hash(newPassword, 10);
 
       await db.query(
-        `UPDATE users SET password_hash=$1, password_updated_at=$2, password_expires_at=$3 WHERE id=$4`,
-        [hashedPassword, new Date().toISOString(), "9999-12-31 23:59:59", userId]
+        `UPDATE users 
+         SET password_hash=$1,
+             password_updated_at=$2,
+             password_expires_at=$3
+         WHERE id=$4`,
+        [
+          hashedPassword,
+          new Date().toISOString(),
+          "9999-12-31 23:59:59", // NEVER EXPIRES
+          userId
+        ]
       );
 
       await activityLoggers.auth.logPasswordReset(req, email);
 
-      return res.json({ message: "Superuser password updated successfully" });
+      return res.json({
+        message: "Superuser password updated successfully",
+        requiresRelogin: true
+      });
     }
 
-    // NORMAL USER
+    /* ============================================================
+       NORMAL USERS — must enter correct CURRENT password
+    ============================================================ */
     const validPassword = await bcrypt.compare(currentPassword, user.password_hash);
 
     if (!validPassword) {
@@ -275,16 +297,28 @@ const resetPassword = async (req, res) => {
 
     const hashedPassword = await bcrypt.hash(newPassword, 10);
 
+    /* ============================================================
+       NORMAL USERS — password expires in 60 days
+    ============================================================ */
     await db.query(
-      `UPDATE users SET password_hash=$1, password_updated_at=$2, password_expires_at=$3 WHERE id=$4`,
-      [hashedPassword, new Date().toISOString(), addDaysToUTC(60), userId]
+      `UPDATE users 
+       SET password_hash=$1,
+           password_updated_at=$2,
+           password_expires_at=$3
+       WHERE id=$4`,
+      [
+        hashedPassword,
+        new Date().toISOString(),
+        addDaysToUTC(60),  // <-- 60 days expiry
+        userId
+      ]
     );
 
     await activityLoggers.auth.logPasswordReset(req, email);
 
-    res.json({
+    return res.json({
       message: "Password reset successfully",
-      requiresRelogin: true,
+      requiresRelogin: true
     });
 
   } catch (error) {
@@ -294,6 +328,7 @@ const resetPassword = async (req, res) => {
 };
 
 
+
 /* ============================================================
    ADMIN RESET ANY USER PASSWORD (SUPERUSER ONLY)
 ============================================================ */
@@ -301,33 +336,55 @@ const resetPassword = async (req, res) => {
 const adminResetPassword = async (req, res) => {
   const { email, newPassword } = req.body;
 
+  // Only superuser can reset others’ passwords
   if (req.user.role !== "superuser") {
     return res.status(403).json({ error: "Only superuser can reset passwords" });
   }
 
   try {
-    const userResult = await db.query("SELECT id FROM users WHERE email=$1", [email]);
+    // Fetch user to know their role
+    const userResult = await db.query(
+      "SELECT id, role FROM users WHERE email=$1",
+      [email]
+    );
 
     if (userResult.rows.length === 0) {
       return res.status(404).json({ error: "User not found" });
     }
 
+    const targetUser = userResult.rows[0];
+
+    // Hash new password
     const hashedPassword = await bcrypt.hash(newPassword, 10);
 
+    // Expiry logic:
+    // ✔ Normal users → 60 days
+    // ✔ Superuser → never expires
+    const expiresAt =
+      targetUser.role === "superuser"
+        ? "9999-12-31 23:59:59"
+        : addDaysToUTC(60);
+
     await db.query(
-      `UPDATE users SET password_hash=$1, password_updated_at=$2, password_expires_at=$3 WHERE email=$4`,
-      [hashedPassword, new Date().toISOString(), addDaysToUTC(60), email]
+      `UPDATE users 
+       SET password_hash=$1, password_updated_at=$2, password_expires_at=$3 
+       WHERE email=$4`,
+      [hashedPassword, new Date().toISOString(), expiresAt, email]
     );
 
     await activityLoggers.auth.logPasswordReset(req, email);
 
-    res.json({ message: "Password reset successfully" });
+    return res.json({
+      message: "Password reset successfully",
+      expiresInDays: targetUser.role === "superuser" ? "never" : 60,
+    });
 
   } catch (error) {
     console.error("Admin password reset error:", error);
-    res.status(500).json({ error: "Server error" });
+    return res.status(500).json({ error: "Server error" });
   }
 };
+
 
 
 
