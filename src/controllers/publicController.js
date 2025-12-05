@@ -337,6 +337,19 @@ const getAllPublicPages = async (req, res) => {
   }
 };
 
+const getPageStatusList = async (req, res) => {
+  try {
+    const result = await db.query(`SELECT name, status FROM pages ORDER BY id`);
+
+    res.json({
+      pages: result.rows,
+    });
+  } catch (err) {
+    console.error('Error fetching page statuses:', err);
+    res.status(500).json({ error: 'Failed to fetch page statuses' });
+  }
+};
+
 // Get specific page details (only if published)
 const getPublicPageDetails = async (req, res) => {
   const { pageName } = req.params;
@@ -955,6 +968,7 @@ module.exports = {
   getPublicPageDetails,
   getAllPagesBackground,
   getPublicAwardsByYear,
+  getPageStatusList,
   submitContactMessage,
   getPublicContactInfo,
 };

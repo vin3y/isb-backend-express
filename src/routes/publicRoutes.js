@@ -5,6 +5,8 @@ const publicPagesController = require('../../src/controllers/publicController');
 // Get all published pages with basic info
 router.get('/pages', publicPagesController.getAllPublicPages);
 
+router.get('/pages/status-list', publicPagesController.getPageStatusList);
+
 // Get specific page details (with related data like partners, team, etc.)
 router.get('/pages/:pageName', publicPagesController.getPublicPageDetails);
 
@@ -19,6 +21,5 @@ router.post('/contact', publicPagesController.submitContactMessage);
 // Get contact information (public endpoint)
 // GET /api/public/contact
 router.get('/contact', publicPagesController.getPublicContactInfo);
-
 
 module.exports = router;
