@@ -35,44 +35,45 @@ const getISBFilmsPageDetails = async (req, res) => {
 
     const page = pageResult.rows[0];
 
-    // Fetch associated content based on page
+    // ================= HOME PAGE =================
     if (pageName === 'home') {
-      // Get crew
       const crewResult = await db.query(
         `SELECT * FROM isb_films_crew 
-     WHERE page_id = $1 
-     ORDER BY order_index, id`,
+         WHERE page_id = $1 
+         ORDER BY order_index, id`,
         [page.id]
       );
       page.crew = crewResult.rows;
 
-      // ⭐ NEW: Get home content sections
+      // ⭐ NEW HOME SECTIONS
       const homeContent = await db.query(
         `SELECT id, section_type, content 
-     FROM isb_films_home_multiple
-     WHERE films_page_id = $1
-     ORDER BY id ASC`,
+         FROM isb_films_home_multiple
+         WHERE films_page_id = $1
+         ORDER BY id ASC`,
         [page.id]
       );
 
       page.sections = homeContent.rows;
     }
 
+    // ================= FILMOGRAPHY PAGE =================
     if (pageName === 'filmography') {
-      // Get movies
       const moviesResult = await db.query(
         `SELECT m.*, 
-         (SELECT COUNT(*) FROM isb_films_movie_awards WHERE movie_id = m.id) as awards_count
+           (SELECT COUNT(*) 
+            FROM isb_films_movie_awards 
+            WHERE movie_id = m.id) AS awards_count
          FROM isb_films_movies m
-         WHERE m.page_id = $1 
+         WHERE m.page_id = $1
          ORDER BY m.order_index, m.year_of_release DESC`,
         [page.id]
       );
       page.movies = moviesResult.rows;
     }
 
+    // ================= NEWS PAGE =================
     if (pageName === 'news') {
-      // Get news articles
       const newsResult = await db.query(
         `SELECT * FROM isb_films_news_articles 
          WHERE page_id = $1 
@@ -82,6 +83,28 @@ const getISBFilmsPageDetails = async (req, res) => {
       page.news = newsResult.rows;
     }
 
+    // ================= SUSTAINABILITY PAGE (⭐ NEW) =================
+    if (pageName === 'sustainability') {
+      const vowsResult = await db.query(
+        `SELECT 
+            id,
+            vow_heading,
+            description,
+            image_url,
+            order_index,
+            created_at,
+            updated_at
+         FROM isb_films_sustainability_vows
+         WHERE page_id = $1
+         ORDER BY order_index, created_at DESC`,
+        [page.id]
+      );
+
+      page.vows = vowsResult.rows;
+      page.totalVows = vowsResult.rows.length;
+    }
+
+    // ================= SEND RESPONSE =================
     res.json(page);
   } catch (error) {
     console.error('Error fetching ISB Films page:', error);
