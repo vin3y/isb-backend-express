@@ -28,13 +28,28 @@ const getAllPublicISBFilmsPages = async (req, res) => {
 
     const pages = [];
 
-    // Process each page and add its specific data
     for (const page of result.rows) {
       const pageData = { ...page };
 
+      // ⭐ CASE 1: CONTACT PAGE → fetch background from MAIN pages table
+      if (page.name === 'contact') {
+        const bgResult = await db.query(
+          `SELECT 
+            background_video_url,
+            background_thumbnail_url
+           FROM pages
+           WHERE name = 'contact' AND status = 'published'`
+        );
+
+        if (bgResult.rows.length > 0) {
+          pageData.background_video_url = bgResult.rows[0].background_video_url;
+          pageData.background_thumbnail_url = bgResult.rows[0].background_thumbnail_url;
+        }
+      }
+
+      // ⭐ CASE 2: normal ISB Films pages
       switch (page.name) {
         case 'home':
-          // Fetch crew members for home page (published only)
           const crewResult = await db.query(
             `SELECT 
               id, 
@@ -53,7 +68,6 @@ const getAllPublicISBFilmsPages = async (req, res) => {
           break;
 
         case 'filmography':
-          // Fetch movies with awards count (published only)
           const moviesResult = await db.query(
             `SELECT 
               m.id,
@@ -82,7 +96,6 @@ const getAllPublicISBFilmsPages = async (req, res) => {
           pageData.movies = moviesResult.rows;
           pageData.totalMovies = moviesResult.rows.length;
 
-          // Get unique years for filtering
           const yearsResult = await db.query(
             `SELECT DISTINCT year_of_release as year, COUNT(*) as movie_count
              FROM isb_films_movies
@@ -95,7 +108,6 @@ const getAllPublicISBFilmsPages = async (req, res) => {
           break;
 
         case 'sustainability':
-          // Fetch sustainability vows (published only)
           const vowsResult = await db.query(
             `SELECT 
               id,
@@ -115,7 +127,6 @@ const getAllPublicISBFilmsPages = async (req, res) => {
           break;
 
         case 'news':
-          // Fetch news articles (published only)
           const newsResult = await db.query(
             `SELECT 
               id,
@@ -136,7 +147,6 @@ const getAllPublicISBFilmsPages = async (req, res) => {
           pageData.news = newsResult.rows;
           pageData.totalNews = newsResult.rows.length;
 
-          // Get unique categories for filtering
           const categoriesResult = await db.query(
             `SELECT DISTINCT category, COUNT(*) as article_count
              FROM isb_films_news_articles
@@ -168,26 +178,44 @@ const getAllPublicISBFilmsPages = async (req, res) => {
     });
   }
 };
-
 // ==================== GET SPECIFIC PAGE DETAILS (PUBLISHED ONLY) ====================
 const getPublicISBFilmsPageDetails = async (req, res) => {
   const { pageName } = req.params;
 
   try {
-    // Get page data
-    const pageResult = await db.query(
-      `SELECT 
-        id, 
-        name, 
-        title, 
-        background_video_url, 
-        background_thumbnail_url, 
-        status, 
-        updated_at 
-       FROM isb_films_pages 
-       WHERE name = $1 AND status = 'published'`,
-      [pageName]
-    );
+    let pageResult;
+
+    // ⭐ SPECIAL CASE: Contact page → Fetch from main pages table
+    if (pageName === 'contact') {
+      pageResult = await db.query(
+        `SELECT 
+          id,
+          name,
+          title,
+          background_video_url,
+          background_thumbnail_url,
+          status,
+          updated_at
+         FROM pages
+         WHERE name = $1 AND status = 'published'`,
+        [pageName]
+      );
+    } else {
+      // ⭐ Normal ISB Films pages → Fetch from isb_films_pages
+      pageResult = await db.query(
+        `SELECT 
+          id, 
+          name, 
+          title, 
+          background_video_url, 
+          background_thumbnail_url, 
+          status, 
+          updated_at 
+         FROM isb_films_pages 
+         WHERE name = $1 AND status = 'published'`,
+        [pageName]
+      );
+    }
 
     if (pageResult.rows.length === 0) {
       return res.status(404).json({
@@ -198,44 +226,51 @@ const getPublicISBFilmsPageDetails = async (req, res) => {
 
     const page = pageResult.rows[0];
 
-    // Add page-specific data based on page name
+    // ⭐ For CONTACT page, no ISB Films–specific data is needed → return immediately
+    if (pageName === 'contact') {
+      return res.json({
+        success: true,
+        page: {
+          ...page,
+          contactInfo: null, // Optional: if you want you can attach contact info here too
+        },
+      });
+    }
+
+    // ⭐ Add ISB Films specific sections for non-contact pages
     switch (pageName) {
       case 'home':
-        // Fetch crew members
         const crewResult = await db.query(
           `SELECT 
-      id, 
-      name, 
-      designation, 
-      photo_url, 
-      about,
-      order_index 
-     FROM isb_films_crew 
-     WHERE page_id = $1 AND status = 'published'
-     ORDER BY order_index, id`,
+            id, 
+            name, 
+            designation, 
+            photo_url, 
+            about,
+            order_index 
+           FROM isb_films_crew 
+           WHERE page_id = $1 AND status = 'published'
+           ORDER BY order_index, id`,
           [page.id]
         );
         page.crew = crewResult.rows;
         page.totalCrew = crewResult.rows.length;
 
-        // ⭐ NEW — Fetch What We Do + Projects With Personality sections
         const homeSectionsResult = await db.query(
           `SELECT 
-        id,
-        section_type,
-        content
-     FROM isb_films_home_multiple
-     WHERE films_page_id = $1
-     ORDER BY id ASC`,
+            id,
+            section_type,
+            content
+           FROM isb_films_home_multiple
+           WHERE films_page_id = $1
+           ORDER BY id ASC`,
           [page.id]
         );
 
-        page.sections = homeSectionsResult.rows; // <–– attach sections here
-
+        page.sections = homeSectionsResult.rows;
         break;
 
       case 'filmography':
-        // Fetch movies with awards count
         const moviesResult = await db.query(
           `SELECT 
             m.id,
@@ -264,7 +299,6 @@ const getPublicISBFilmsPageDetails = async (req, res) => {
         page.movies = moviesResult.rows;
         page.totalMovies = moviesResult.rows.length;
 
-        // Get unique years
         const yearsResult = await db.query(
           `SELECT DISTINCT year_of_release as year, COUNT(*) as movie_count
            FROM isb_films_movies
@@ -277,7 +311,6 @@ const getPublicISBFilmsPageDetails = async (req, res) => {
         break;
 
       case 'sustainability':
-        // Fetch sustainability vows
         const vowsResult = await db.query(
           `SELECT 
             id,
@@ -297,7 +330,6 @@ const getPublicISBFilmsPageDetails = async (req, res) => {
         break;
 
       case 'news':
-        // Fetch news articles
         const newsResult = await db.query(
           `SELECT 
             id,
@@ -318,7 +350,6 @@ const getPublicISBFilmsPageDetails = async (req, res) => {
         page.news = newsResult.rows;
         page.totalNews = newsResult.rows.length;
 
-        // Get categories
         const categoriesResult = await db.query(
           `SELECT DISTINCT category, COUNT(*) as article_count
            FROM isb_films_news_articles
@@ -345,8 +376,7 @@ const getPublicISBFilmsPageDetails = async (req, res) => {
       error: 'Server error',
     });
   }
-};
-// ==================== GET ALL PAGES BACKGROUND DATA ====================
+}; // ==================== GET ALL PAGES BACKGROUND DATA ====================
 const getAllISBFilmsPagesBackground = async (req, res) => {
   try {
     const result = await db.query(
@@ -386,16 +416,33 @@ const getISBFilmsPageBackground = async (req, res) => {
   const { pageName } = req.params;
 
   try {
-    const result = await db.query(
-      `SELECT 
-        name, 
-        title, 
-        background_video_url, 
-        background_thumbnail_url 
-       FROM isb_films_pages 
-       WHERE name = $1 AND status = 'published'`,
-      [pageName]
-    );
+    let result;
+
+    if (pageName === 'contact') {
+      // ⭐ Fetch background from MAIN pages table
+      result = await db.query(
+        `SELECT 
+          name, 
+          title, 
+          background_video_url, 
+          background_thumbnail_url 
+         FROM pages 
+         WHERE name = $1 AND status = 'published'`,
+        [pageName]
+      );
+    } else {
+      // ⭐ Default: fetch from ISB Films table
+      result = await db.query(
+        `SELECT 
+          name, 
+          title, 
+          background_video_url, 
+          background_thumbnail_url 
+         FROM isb_films_pages 
+         WHERE name = $1 AND status = 'published'`,
+        [pageName]
+      );
+    }
 
     if (result.rows.length === 0) {
       return res.status(404).json({
