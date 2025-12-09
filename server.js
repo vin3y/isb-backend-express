@@ -25,6 +25,10 @@ const corsOptions = {
     const allowedOrigins =
       process.env.NODE_ENV === 'production'
         ? [
+            'https://isbfilms.com',
+            'https://www.isbfilms.com',
+            'http://www.isbfilms.com',
+            'http://isbfilms.com',
             'http://isb-admin-prod.eba-5darypkj.eu-north-1.elasticbeanstalk.com',
             'https://isb-admin-prod.eba-5darypkj.eu-north-1.elasticbeanstalk.com',
             'http://isb-admin-client.eba-zfrf236m.eu-north-1.elasticbeanstalk.com',
