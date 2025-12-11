@@ -65,6 +65,19 @@ const getAllPublicISBFilmsPages = async (req, res) => {
           );
           pageData.crew = crewResult.rows;
           pageData.totalCrew = crewResult.rows.length;
+
+          const homeSectionsResult = await db.query(
+            `SELECT 
+            id,
+            section_type,
+            content
+           FROM isb_films_home_multiple
+           WHERE films_page_id = $1
+           ORDER BY id ASC`,
+            [page.id]
+          );
+
+          pageData.sections = homeSectionsResult.rows;
           break;
 
         case 'filmography':
@@ -590,7 +603,7 @@ const getLatestMovies = async (req, res) => {
        FROM isb_films_movies
        WHERE status = 'published'
        ORDER BY year_of_release DESC, created_at DESC
-       LIMIT 4`
+       LIMIT 15`
     );
 
     res.json({
