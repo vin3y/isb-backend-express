@@ -36,12 +36,15 @@ const corsOptions = {
             'https://isb-admin-client.eba-zfrf236m.eu-north-1.elasticbeanstalk.com',
             'http://localhost:5173',
             'http://127.0.0.1:5173',
-            ' http://192.168.1.34:5173',
+            'http://192.168.1.34:5173',
             'https://webpanel.isbtv.es',
             'https://www.webpanel.isbtv.es',
             'http://webpanel.isbtv.es',
             'http://www.webpanel.isbtv.es',
             'http://16.16.213.139',
+            'http://16.16.213.139/',
+            'http://16.16.213.139:80',
+            'https://16.16.213.139',
           ]
         : ['http://localhost:5173', 'http://localhost:3000', 'http://127.0.0.1:5173'];
 
