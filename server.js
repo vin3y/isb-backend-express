@@ -41,6 +41,7 @@ const corsOptions = {
             'https://www.webpanel.isbtv.es',
             'http://webpanel.isbtv.es',
             'http://www.webpanel.isbtv.es',
+            'http://16.16.213.139',
           ]
         : ['http://localhost:5173', 'http://localhost:3000', 'http://127.0.0.1:5173'];
 
