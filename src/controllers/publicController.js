@@ -339,7 +339,17 @@ const getAllPublicPages = async (req, res) => {
 
 const getPageStatusList = async (req, res) => {
   try {
-    const result = await db.query(`SELECT name, status FROM pages ORDER BY id`);
+    const result = await db.query(`
+      SELECT name, status 
+      FROM pages
+
+      UNION ALL
+      
+      SELECT CONCAT('isbfilms-', name) AS name, status
+      FROM isb_films_pages
+
+      ORDER BY name;
+    `);
 
     res.json({
       pages: result.rows,
