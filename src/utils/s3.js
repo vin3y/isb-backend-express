@@ -10,6 +10,8 @@ AWS.config.update({
   signatureVersion: 'v4',
 });
 
+const VIDEO_CACHE_CONTROL = 'public, max-age=31536000, immutable';
+
 const s3 = new AWS.S3({
   apiVersion: '2006-03-01',
   accessKeyId: process.env.AWS_ACCESS_KEY_ID,
@@ -29,6 +31,12 @@ const uploadBackgroundVideo = multer({
     s3: s3,
     bucket: bucketName,
     contentType: multerS3.AUTO_CONTENT_TYPE,
+
+    metadata: (req, file, cb) => {
+      cb(null, {
+        'Cache-Control': VIDEO_CACHE_CONTROL,
+      });
+    },
     key: (req, file, cb) => {
       const pageName = req.params.pageName || 'home';
       const timestamp = Date.now();
@@ -298,6 +306,9 @@ const uploadISBFilmsBackgroundVideo = multer({
     s3: s3,
     bucket: bucketName,
     contentType: multerS3.AUTO_CONTENT_TYPE,
+    metadata: (req, file, cb) => {
+      cb(null, { 'Cache-Control': VIDEO_CACHE_CONTROL });
+    },
     key: (req, file, cb) => {
       const pageName = req.params.pageName || 'home';
       const timestamp = Date.now();
@@ -570,6 +581,9 @@ const uploadAboutEventVideo = multer({
     s3: s3,
     bucket: bucketName,
     contentType: multerS3.AUTO_CONTENT_TYPE, // auto detect mime
+    metadata: (req, file, cb) => {
+      cb(null, { 'Cache-Control': VIDEO_CACHE_CONTROL });
+    },
     key: (req, file, cb) => {
       const timestamp = Date.now();
       const title = req.body.event_title || 'event-video';
