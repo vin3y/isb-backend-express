@@ -45,6 +45,10 @@ const corsOptions = {
             'http://16.16.213.139/',
             'http://16.16.213.139:80',
             'https://16.16.213.139',
+            'https://www.isbtv.es',
+            'http://isbtv.es',
+            'https://isbtv.es',
+            'http://www.isbtv.es',
           ]
         : ['http://localhost:5173', 'http://localhost:3000', 'http://127.0.0.1:5173'];
 
