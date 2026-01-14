@@ -2,6 +2,12 @@ const db = require('../config/db');
 const { deleteFile } = require('../utils/s3');
 const { activityLoggers } = require('../middlewares/activityLogger');
 
+const toNull = (v) => {
+  if (v === undefined || v === null) return null;
+  if (typeof v === "string" && v.trim() === "") return null;
+  return v;
+};
+
 // ==================== GET LATEST 4 MOVIES (PUBLISHED ONLY) ====================
 const getLatestMovies = async (req, res) => {
   try {
@@ -230,18 +236,18 @@ const createMovie = async (req, res) => {
         pageId,
         film_name,
         posterUrl,
-        trailer_url || null,
-        year_of_release || null,
-        director || null,
-        format || null,
-        description || null,
-        synopsis || null,
-        cast_members || null,
-        production_company || null,
-        sales_agent_name || null,
-        imdb_link || null,
-        vimeo_youtube_link || null,
-        order_index || 0,
+        toNull(trailer_url),
+    toNull(year_of_release),
+    toNull(director),
+    toNull(format),
+    toNull(description),
+    toNull(synopsis),
+    toNull(cast_members),
+    toNull(production_company),
+    toNull(sales_agent_name),
+    toNull(imdb_link),
+    toNull(vimeo_youtube_link),
+    order_index ?? 0,
       ]
     );
 
@@ -397,6 +403,8 @@ const updateMovie = async (req, res) => {
     console.log('📸 Poster file found:', posterFile ? 'YES' : 'NO');
     console.log('📸 Poster URL:', posterUrl);
 
+    
+
     // Update movie
     const movieResult = await db.query(
       `UPDATE isb_films_movies SET
@@ -412,7 +420,7 @@ const updateMovie = async (req, res) => {
       [
         film_name || oldMovie.film_name,
         posterUrl,
-        trailer_url !== undefined ? trailer_url : oldMovie.trailer_url,
+        trailer_url !== undefined ? toNull(trailer_url) : oldMovie.trailer_url,
         year_of_release !== undefined ? year_of_release : oldMovie.year_of_release,
         director || oldMovie.director,
         format || oldMovie.format,
@@ -421,8 +429,8 @@ const updateMovie = async (req, res) => {
         cast_members !== undefined ? cast_members : oldMovie.cast_members,
         production_company || oldMovie.production_company,
         sales_agent_name || oldMovie.sales_agent_name,
-        imdb_link || oldMovie.imdb_link,
-        vimeo_youtube_link || oldMovie.vimeo_youtube_link,
+        imdb_link !== undefined ? toNull(imdb_link) : oldMovie.imdb_link,
+        vimeo_youtube_link !== undefined ? toNull(vimeo_youtube_link) : oldMovie.vimeo_youtube_link,
         status || oldMovie.status,
         order_index !== undefined ? order_index : oldMovie.order_index,
         movieId,
